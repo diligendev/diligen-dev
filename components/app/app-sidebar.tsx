@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
-import { PLANS, subscription, getUsage } from "@/lib/mock-data"
+import { getUsage } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 
 const nav = [
@@ -104,12 +104,16 @@ function initialsFor(name: string, email: string) {
 export function AppSidebar({
   user,
 }: {
-  user: { name: string; email: string }
+  user: {
+    name: string
+    email: string
+    role: string
+    organizationName: string
+  }
 }) {
   const pathname = usePathname()
   const router = useRouter()
   const initials = initialsFor(user.name, user.email)
-  const plan = PLANS[subscription.planId]
   const usageGlance = getUsage().filter(
     (m) => m.key === "analyses" || m.key === "seats",
   )
@@ -215,7 +219,7 @@ export function AppSidebar({
                         {user.name}
                       </span>
                       <span className="text-[11px] text-sidebar-foreground/50">
-                        {user.email}
+                        {user.organizationName}
                       </span>
                     </div>
                     <ChevronsUpDown className="ml-auto size-3.5 text-sidebar-foreground/40" />
@@ -239,9 +243,12 @@ export function AppSidebar({
                       </span>
                     </div>
                     <Badge className="shrink-0 rounded bg-accent/15 text-[10px] text-accent">
-                      {plan.name}
+                      {user.role}
                     </Badge>
                   </div>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                    {user.organizationName}
+                  </p>
 
                   {/* Usage glance — live against the current plan */}
                   <div className="mt-2.5 flex flex-col gap-2">

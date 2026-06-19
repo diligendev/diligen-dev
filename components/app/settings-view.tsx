@@ -60,9 +60,11 @@ function isSettingsSection(value: string | undefined): value is SectionId {
 
 export function SettingsView({
   user,
+  organization,
   initialSection,
 }: {
-  user: { name: string; email: string }
+  user: { name: string; email: string; role: string }
+  organization: { name: string; slug: string }
   initialSection?: string
 }) {
   const [section, setSection] = useState<SectionId>(
@@ -99,7 +101,7 @@ export function SettingsView({
         {/* Section content */}
         <div className="min-w-0 flex-1">
           {section === "profile" && <ProfileSection user={user} />}
-          {section === "workspace" && <WorkspaceSection />}
+          {section === "workspace" && <WorkspaceSection organization={organization} />}
           {section === "billing" && <BillingSection />}
           {section === "usage" && <UsageSection />}
           {section === "team" && <TeamSection />}
@@ -206,9 +208,13 @@ function fmtNum(n: number, unit?: string) {
 // Profile
 // ---------------------------------------------------------------------------
 
-function ProfileSection({ user }: { user: { name: string; email: string } }) {
+function ProfileSection({
+  user,
+}: {
+  user: { name: string; email: string; role: string }
+}) {
   const [name, setName] = useState(user.name)
-  const [role, setRole] = useState("Principal")
+  const role = user.role
   const [timezone, setTimezone] = useState("America/New_York")
   const initials =
     name
@@ -261,21 +267,12 @@ function ProfileSection({ user }: { user: { name: string; email: string } }) {
               className="h-9 cursor-not-allowed rounded-sm bg-secondary/40 text-[13px] text-muted-foreground"
             />
           </Field>
-          <Field label="Role">
-            <Select value={role} onValueChange={(v) => v && setRole(v)}>
-              <SelectTrigger className="h-9 rounded-sm text-[13px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["Managing Partner", "Principal", "Vice President", "Associate", "Analyst"].map(
-                  (r) => (
-                    <SelectItem key={r} value={r} className="text-[13px]">
-                      {r}
-                    </SelectItem>
-                  ),
-                )}
-              </SelectContent>
-            </Select>
+          <Field label="Workspace role" hint="Managed by workspace owners and admins.">
+            <Input
+              value={role}
+              readOnly
+              className="h-9 cursor-not-allowed rounded-sm bg-secondary/40 text-[13px] capitalize text-muted-foreground"
+            />
           </Field>
           <Field label="Timezone">
             <Select value={timezone} onValueChange={(v) => v && setTimezone(v)}>
@@ -306,8 +303,12 @@ function ProfileSection({ user }: { user: { name: string; email: string } }) {
 // Workspace
 // ---------------------------------------------------------------------------
 
-function WorkspaceSection() {
-  const [firm, setFirm] = useState(subscription.firmName)
+function WorkspaceSection({
+  organization,
+}: {
+  organization: { name: string; slug: string }
+}) {
+  const [firm, setFirm] = useState(organization.name)
   const [firmType, setFirmType] = useState(subscription.firmType)
   const [defaultSource, setDefaultSource] = useState("Broker")
   const [fiscalYear, setFiscalYear] = useState("December")
@@ -333,6 +334,14 @@ function WorkspaceSection() {
             value={firm}
             onChange={(e) => setFirm(e.target.value)}
             className="h-9 rounded-sm text-[13px]"
+          />
+        </Field>
+        <Field label="Workspace slug" htmlFor="ws-slug" hint="Used internally for workspace routing and references.">
+          <Input
+            id="ws-slug"
+            value={organization.slug}
+            readOnly
+            className="h-9 cursor-not-allowed rounded-sm bg-secondary/40 text-[13px] text-muted-foreground"
           />
         </Field>
         <Field label="Firm type">

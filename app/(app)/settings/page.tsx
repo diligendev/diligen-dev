@@ -1,25 +1,37 @@
 import { SettingsView } from "@/components/app/settings-view"
-import { createClient } from "@/lib/supabase/server"
+import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { redirect } from "next/navigation"
 
 export default async function SettingsPage({
   searchParams,
 }: {
   searchParams: Promise<{ section?: string }>
 }) {
-  const supabase = await createClient()
-  const { data } = await supabase.auth.getUser()
+  const context = await getCurrentUserContext()
   const { section } = await searchParams
 
-  const user = {
-    email: data.user?.email ?? "",
-    name:
-      data.user?.user_metadata?.full_name ??
-      data.user?.user_metadata?.name ??
-      data.user?.email ??
-      "Diligen user",
+  if (!context) {
+    redirect("/login")
+  }
+
+  if (!hasWorkspace(context)) {
+    redirect("/setup")
   }
 
   // Pass the raw query value; SettingsView (client) validates it. Validating
   // here would mean calling a client-only function from the server.
-  return <SettingsView user={user} initialSection={section} />
+  return (
+    <SettingsView
+      user={{
+        email: context.profile.email,
+        name: context.profile.fullName,
+        role: context.membership.role,
+      }}
+      organization={{
+        name: context.organization.name,
+        slug: context.organization.slug,
+      }}
+      initialSection={section}
+    />
+  )
 }

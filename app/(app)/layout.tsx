@@ -6,14 +6,17 @@ import { AppSidebar } from "@/components/app/app-sidebar"
 import { CommandPalette } from "@/components/app/command-palette"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { createClient } from "@/lib/supabase/server"
+import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data } = await supabase.auth.getUser()
+  const context = await getCurrentUserContext()
 
-  if (!data.user) {
+  if (!context) {
     redirect("/login")
+  }
+
+  if (!hasWorkspace(context)) {
+    redirect("/setup")
   }
 
   return (
@@ -22,12 +25,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <SidebarProvider>
           <AppSidebar
             user={{
-              email: data.user.email ?? "",
-              name:
-                data.user.user_metadata?.full_name ??
-                data.user.user_metadata?.name ??
-                data.user.email ??
-                "Diligen user",
+              email: context.profile.email,
+              name: context.profile.fullName,
+              role: context.membership.role,
+              organizationName: context.organization.name,
             }}
           />
           <SidebarInset className="bg-background">{children}</SidebarInset>
