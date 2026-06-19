@@ -1,55 +1,64 @@
+const stats = [
+  { value: "$890B+", label: "Capital deployed by firms on the platform", accent: true },
+  { value: "5+",     label: "Days saved per deal on average" },
+  { value: "1M+",    label: "Analyses & insights generated monthly" },
+]
+
 export function StatsBar() {
   return (
-    <section className="border-b border-border">
-      <div className="mx-auto max-w-6xl px-6 py-24">
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-          {/* feature card — navy/teal gradient */}
-          <div
-            className="relative overflow-hidden rounded-xl sm:col-span-1"
-            style={{
-              background: "linear-gradient(135deg, #1C3A5E 0%, #0F2545 60%, #0d1e38 100%)",
-            }}
-          >
+    <section
+      className="relative border-b border-border overflow-hidden"
+      style={{ background: "#06101C" }}
+    >
+      {/* fine grid carries through */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M56 0H0v56' stroke='%231ABEBD' stroke-width='0.35' fill='none' opacity='0.05'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      <div className="relative mx-auto max-w-6xl px-6 py-20">
+        {/* section label */}
+        <p
+          className="mb-10 text-[10px] font-bold uppercase tracking-[0.2em]"
+          style={{ color: "rgba(26,190,189,0.60)" }}
+        >
+          Platform Metrics
+        </p>
+
+        <div className="grid grid-cols-1 gap-px sm:grid-cols-3" style={{ background: "rgba(26,190,189,0.08)" }}>
+          {stats.map((s) => (
             <div
-              className="absolute right-4 top-4 h-24 w-24 rounded-full opacity-20"
-              style={{ background: "radial-gradient(circle, #1ABEBD, transparent 70%)" }}
-              aria-hidden
-            />
-            <div className="flex h-full flex-col justify-end p-8 pb-7">
-              <p className="font-sans text-[72px] font-light leading-none tracking-[-0.04em] text-white">
-                $890B+
-              </p>
-              <p className="mt-3 text-sm" style={{ color: "rgba(26,190,189,0.85)" }}>
-                Capital deployed by firms on the platform
-              </p>
+              key={s.value}
+              className="relative flex flex-col justify-between p-8"
+              style={{ background: s.accent ? "rgba(26,190,189,0.05)" : "#06101C" }}
+            >
+              {/* top-left data node */}
+              <div
+                className="mb-6 h-px w-8"
+                style={{ background: s.accent ? "#1ABEBD" : "rgba(26,190,189,0.30)" }}
+              />
+              <div>
+                <p
+                  className="font-mono text-[64px] font-semibold leading-none tracking-[-0.04em]"
+                  style={{
+                    color: s.accent ? "#C8A84B" : "#EBF2FF",
+                    textShadow: s.accent ? "0 0 32px rgba(200,168,75,0.25)" : "none",
+                  }}
+                >
+                  {s.value}
+                </p>
+                <p
+                  className="mt-4 text-[13px] leading-relaxed"
+                  style={{ color: "rgba(235,242,255,0.45)" }}
+                >
+                  {s.label}
+                </p>
+              </div>
             </div>
-          </div>
-
-          {/* mid card */}
-          <div
-            className="flex flex-col justify-end rounded-xl p-8 pb-7"
-            style={{ background: "linear-gradient(145deg, #132d4e 0%, #0F2545 100%)" }}
-          >
-            <p className="font-sans text-[72px] font-light leading-none tracking-[-0.04em] text-white">
-              5+
-            </p>
-            <p className="mt-3 text-sm text-foreground/60">
-              Days saved per deal
-            </p>
-          </div>
-
-          {/* right card */}
-          <div
-            className="flex flex-col justify-end rounded-xl p-8 pb-7"
-            style={{ background: "linear-gradient(145deg, #132d4e 0%, #0F2545 100%)" }}
-          >
-            <p className="font-sans text-[72px] font-light leading-none tracking-[-0.04em] text-white">
-              1M+
-            </p>
-            <p className="mt-3 text-sm text-foreground/60">
-              Analyses &amp; insights created per month
-            </p>
-          </div>
+          ))}
         </div>
       </div>
     </section>

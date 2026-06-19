@@ -7,21 +7,21 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 const testimonials = [
   {
     quote:
-      "We've tried several AI tools, but most feel too generic for private equity needs. Diligen stood out because it's clearly designed with our workflow in mind. Instead of just summarizing data, it breaks down critical metrics — like customer retention and growth drivers — so we're able to assess true business health quickly.",
-    role: "Principal",
-    fund: "PE Fund ($45B+ AUM)",
+      "We screen 10 to 15 CIMs a week. Before Diligen, that meant pulling analysts off other work just to triage. Now we have a structured view of unit economics, customer concentration, and margin trends within the hour — so our team spends time on conviction, not extraction.",
+    role: "Managing Partner",
+    fund: "LMM Buyout Fund — $1.8B AUM",
     initials: "SR",
   },
   {
     quote:
-      "Diligen processes documents and transforms them into structured, investor-ready insights. Where other tools just extract text, this platform actually runs the math. It mirrors our workflow, automates the heavy lift, and our team moves materially faster on every deal.",
-    role: "Managing Director",
-    fund: "LMM Buyout Fund — $2.4B AUM",
+      "The output quality is what sets it apart. Most AI tools summarize. Diligen actually builds the analysis — revenue bridges, cohort retention, gross margin walk — the kind of work that previously took a junior associate two days. We now arrive at IC with a tighter thesis and better numbers.",
+    role: "Principal",
+    fund: "Growth Equity Fund — $3.2B AUM",
     initials: "TL",
   },
   {
     quote:
-      "As a search fund, speed is leverage. Meridian lets us compete with funded sponsors on deal process. We reach IC-quality analysis faster than most larger shops, and the output is clean enough to share directly with our lenders.",
+      "As a search fund operator, access to institutional-grade diligence tooling was always out of reach. Diligen changed that. The deal intelligence we produce now is on par with what larger sponsors bring to the table — and our lenders have noticed.",
     role: "Principal Searcher",
     fund: "Independent Search Fund",
     initials: "MK",
@@ -35,58 +35,118 @@ export function Testimonials() {
   const t = testimonials[index]
 
   return (
-    <section id="clients" className="border-b border-border">
-      <div className="mx-auto max-w-6xl px-6 py-28">
-        <div className="grid grid-cols-1 gap-20 lg:grid-cols-[280px_1fr]">
-          {/* left column — heading + CTA, Keye pattern */}
+    <section
+      id="clients"
+      className="relative border-b border-border overflow-hidden"
+      style={{ background: "#06101C" }}
+    >
+      {/* grid texture */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M56 0H0v56' stroke='%231ABEBD' stroke-width='0.35' fill='none' opacity='0.04'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      <div className="relative mx-auto max-w-6xl px-6 py-28">
+        <div className="grid grid-cols-1 gap-20 lg:grid-cols-[260px_1fr]">
+          {/* left column */}
           <div className="flex flex-col justify-center">
-            <h2 className="text-balance text-4xl font-semibold leading-tight tracking-[-0.025em] text-foreground sm:text-5xl">
+            <p
+              className="mb-5 text-[10px] font-bold uppercase tracking-[0.2em]"
+              style={{ color: "rgba(26,190,189,0.60)" }}
+            >
+              Client Voices
+            </p>
+            <h2
+              className="text-balance text-4xl font-semibold leading-tight tracking-[-0.025em]"
+              style={{ color: "#EBF2FF" }}
+            >
               Trusted by Leading Funds
             </h2>
-            <div className="mt-8">
+            <div
+              className="my-6 h-px w-10"
+              style={{ background: "linear-gradient(90deg, #1ABEBD, transparent)" }}
+            />
+            <div className="mt-2">
               <Link
                 href="#demo"
-                className="inline-flex items-center rounded-[4px] border border-foreground/20 bg-foreground/8 px-6 py-3 text-sm font-normal text-foreground transition-colors hover:bg-foreground/12"
+                className="inline-flex items-center rounded-[3px] border px-6 py-3 text-sm font-normal tracking-wide transition-colors"
+                style={{
+                  borderColor: "rgba(26,190,189,0.25)",
+                  color: "#1ABEBD",
+                  background: "rgba(26,190,189,0.05)",
+                }}
               >
                 Book a Demo
               </Link>
             </div>
           </div>
 
-          {/* right column — testimonial card + nav arrows */}
+          {/* right column — testimonial card */}
           <div className="flex flex-col">
-            <div className="min-h-[260px] rounded-xl border border-border/60 bg-card p-8">
-              <blockquote className="text-base leading-relaxed text-foreground/85">
+            {/* opening quote mark */}
+            <div
+              className="mb-4 font-serif text-[80px] leading-none"
+              style={{ color: "rgba(26,190,189,0.15)", lineHeight: 1 }}
+              aria-hidden
+            >
+              &ldquo;
+            </div>
+            <div
+              className="min-h-[220px] border p-8"
+              style={{
+                borderColor: "rgba(26,190,189,0.12)",
+                background: "rgba(26,190,189,0.03)",
+              }}
+            >
+              <blockquote
+                className="text-[15px] leading-[1.8]"
+                style={{ color: "rgba(235,242,255,0.72)" }}
+              >
                 {t.quote}
               </blockquote>
-              <figcaption className="mt-6 flex items-center gap-4 border-t border-border/40 pt-5">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary">
+              <figcaption
+                className="mt-6 flex items-center gap-4 border-t pt-5"
+                style={{ borderColor: "rgba(26,190,189,0.10)" }}
+              >
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm text-xs font-bold"
+                  style={{
+                    background: "rgba(26,190,189,0.10)",
+                    border: "1px solid rgba(26,190,189,0.25)",
+                    color: "#1ABEBD",
+                  }}
+                >
                   {t.initials}
                 </span>
                 <div>
-                  <span className="block text-sm font-medium text-foreground">{t.role}</span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">{t.fund}</span>
+                  <span className="block text-sm font-semibold" style={{ color: "#EBF2FF" }}>{t.role}</span>
+                  <span className="mt-0.5 block text-xs" style={{ color: "rgba(235,242,255,0.38)" }}>{t.fund}</span>
                 </div>
               </figcaption>
             </div>
 
-            {/* carousel nav — Keye's round arrow buttons */}
-            <div className="mt-6 flex items-center gap-4">
+            {/* nav */}
+            <div className="mt-5 flex items-center gap-3">
               <button
                 onClick={prev}
                 aria-label="Previous testimonial"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+                className="flex h-9 w-9 items-center justify-center rounded-sm border transition-colors hover:border-border"
+                style={{ borderColor: "rgba(26,190,189,0.20)", color: "rgba(235,242,255,0.40)" }}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button
                 onClick={next}
                 aria-label="Next testimonial"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+                className="flex h-9 w-9 items-center justify-center rounded-sm border transition-colors hover:border-border"
+                style={{ borderColor: "rgba(26,190,189,0.20)", color: "rgba(235,242,255,0.40)" }}
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
-              <span className="ml-2 font-mono text-xs text-muted-foreground tabular-nums">
+              <span className="ml-1 font-mono text-[11px] tabular-nums" style={{ color: "rgba(26,190,189,0.40)" }}>
                 {index + 1} / {testimonials.length}
               </span>
             </div>

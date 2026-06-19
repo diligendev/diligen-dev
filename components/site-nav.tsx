@@ -33,11 +33,11 @@ export function SiteNav() {
           <Link href="/platform" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             Diligence Platform
           </Link>
-          <Link href="#company" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+          <Link href="/company" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             Company
           </Link>
-          <Link href="#security" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-            Security
+          <Link href="/blog" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+            Blog
           </Link>
         </div>
 

@@ -51,53 +51,84 @@ const pillars = [
 
 export function PlatformDifference() {
   return (
-    <section className="border-b border-border">
-      <div className="mx-auto max-w-6xl px-6 py-28">
+    <section className="relative border-b overflow-hidden" style={{ borderColor: "rgba(26,190,189,0.10)", background: "#080F1C" }}>
+      {/* grid texture */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M56 0H0v56' stroke='%231ABEBD' stroke-width='0.35' fill='none' opacity='0.04'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      <div className="relative mx-auto max-w-6xl px-6 py-28">
         {/* eyebrow + headline */}
-        <div className="mx-auto max-w-2xl text-center">
-          <p className="text-sm font-medium text-primary">The Diligen Difference</p>
-          <h2 className="mt-4 text-balance text-4xl font-light leading-tight tracking-tight sm:text-5xl">
+        <div className="mb-16">
+          <p
+            className="mb-4 text-[10px] font-bold uppercase tracking-[0.2em]"
+            style={{ color: "rgba(26,190,189,0.60)" }}
+          >
+            The Diligen Difference
+          </p>
+          <h2
+            className="text-balance text-4xl font-semibold leading-tight tracking-[-0.025em] sm:text-5xl"
+            style={{ color: "#EBF2FF" }}
+          >
             Beyond simple search
             <br />
-            and summarization.
+            <span style={{ color: "rgba(235,242,255,0.45)" }}>and summarization.</span>
           </h2>
-          <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-muted-foreground">
+          <div
+            className="mt-5 h-px w-14"
+            style={{ background: "linear-gradient(90deg, #1ABEBD, transparent)" }}
+          />
+          <p className="mt-5 max-w-lg text-[14px] leading-[1.75]" style={{ color: "rgba(235,242,255,0.48)" }}>
             Cut your diligence timeline in half using structured insights that go far
             deeper than a generic AI knowledge tool can.
           </p>
         </div>
 
         {/* three pillars */}
-        <div className="mt-16 grid grid-cols-1 gap-6 sm:grid-cols-3">
-          {pillars.map((p) => (
+        <div className="grid grid-cols-1 gap-px sm:grid-cols-3" style={{ background: "rgba(26,190,189,0.08)" }}>
+          {pillars.map((p, i) => (
             <div
               key={p.label}
-              className="rounded-lg border border-border/50 bg-card/60 p-7"
+              className="p-7"
+              style={{ background: "#080F1C" }}
             >
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground">
+              <span
+                className="mb-4 block font-mono text-[10px] font-bold"
+                style={{ color: "rgba(26,190,189,0.35)" }}
+              >
+                0{i + 1}
+              </span>
+              <h3 className="text-[13px] font-semibold leading-snug" style={{ color: "#EBF2FF" }}>
                 {p.label}
               </h3>
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{p.body}</p>
+              <p className="mt-3 text-[13px] leading-relaxed" style={{ color: "rgba(235,242,255,0.45)" }}>{p.body}</p>
             </div>
           ))}
         </div>
 
         {/* comparison table */}
         <div className="mt-20">
-          <h3 className="mb-8 text-center text-xl font-light text-foreground">
+          <p
+            className="mb-8 text-center text-[10px] font-bold uppercase tracking-[0.18em]"
+            style={{ color: "rgba(26,190,189,0.45)" }}
+          >
             Diligen vs. the conventional process
-          </h3>
-          <div className="overflow-hidden rounded-lg border border-border/60">
+          </p>
+          <div className="overflow-hidden" style={{ border: "1px solid rgba(26,190,189,0.12)" }}>
             <table className="w-full">
               <thead>
-                <tr className="border-b border-border bg-secondary/50">
-                  <th className="px-6 py-4 text-left font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                <tr style={{ borderBottom: "1px solid rgba(26,190,189,0.10)", background: "rgba(26,190,189,0.04)" }}>
+                  <th className="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.15em]" style={{ color: "rgba(235,242,255,0.30)" }}>
                     Category
                   </th>
-                  <th className="px-6 py-4 text-left font-mono text-[11px] uppercase tracking-widest text-primary">
+                  <th className="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.15em]" style={{ color: "#1ABEBD" }}>
                     Diligen
                   </th>
-                  <th className="px-6 py-4 text-left font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                  <th className="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.15em]" style={{ color: "rgba(235,242,255,0.30)" }}>
                     Manual process
                   </th>
                 </tr>
@@ -106,21 +137,24 @@ export function PlatformDifference() {
                 {comparisons.map((c, i) => (
                   <tr
                     key={c.topic}
-                    className={`border-b border-border/40 last:border-0 ${i % 2 === 0 ? "" : "bg-secondary/20"}`}
+                    style={{
+                      borderBottom: "1px solid rgba(26,190,189,0.07)",
+                      background: i % 2 !== 0 ? "rgba(26,190,189,0.02)" : "transparent",
+                    }}
                   >
-                    <td className="px-6 py-4 text-sm font-medium text-foreground/70">
+                    <td className="px-6 py-4 text-[13px] font-medium" style={{ color: "rgba(235,242,255,0.50)" }}>
                       {c.topic}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-start gap-2.5">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" strokeWidth={1.5} />
-                        <span className="text-sm text-foreground/85">{c.us}</span>
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.5} style={{ color: "#1ABEBD" }} />
+                        <span className="text-[13px]" style={{ color: "rgba(235,242,255,0.78)" }}>{c.us}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-start gap-2.5">
-                        <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" strokeWidth={1.5} />
-                        <span className="text-sm text-muted-foreground">{c.them}</span>
+                        <XCircle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.5} style={{ color: "rgba(235,242,255,0.20)" }} />
+                        <span className="text-[13px]" style={{ color: "rgba(235,242,255,0.35)" }}>{c.them}</span>
                       </div>
                     </td>
                   </tr>
@@ -133,7 +167,11 @@ export function PlatformDifference() {
         <div className="mt-12 flex justify-center">
           <Link
             href="#cta"
-            className="rounded-[6px] bg-foreground/90 px-10 py-3 text-base font-medium text-background transition-opacity hover:opacity-85"
+            className="rounded-[3px] px-10 py-3 text-sm font-semibold tracking-wide text-white transition-all hover:brightness-110"
+            style={{
+              background: "linear-gradient(135deg, #1ABEBD 0%, #0E9E9D 100%)",
+              boxShadow: "0 0 20px rgba(26,190,189,0.22)",
+            }}
           >
             Book a Demo
           </Link>

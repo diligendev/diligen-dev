@@ -67,13 +67,23 @@ export function PlatformFeatures() {
   const Panel = current.panel
 
   return (
-    <section className="border-b border-border">
-      {/* full-width dark panel — Keye's exact layout */}
-      <div className="mx-auto max-w-6xl">
-        <div className="grid min-h-[540px] grid-cols-[300px_1fr] lg:grid-cols-[340px_1fr]">
+    <section className="relative border-b overflow-hidden" style={{ borderColor: "rgba(26,190,189,0.10)", background: "#06101C" }}>
+      {/* grid texture */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M56 0H0v56' stroke='%231ABEBD' stroke-width='0.35' fill='none' opacity='0.04'/%3E%3C/svg%3E")`,
+        }}
+      />
+      <div className="relative mx-auto max-w-6xl">
+        <div className="grid min-h-[560px] grid-cols-[300px_1fr] lg:grid-cols-[340px_1fr]" style={{ borderLeft: "1px solid rgba(26,190,189,0.10)", borderRight: "1px solid rgba(26,190,189,0.10)" }}>
           {/* left: feature nav */}
-          <div className="flex flex-col border-r border-border py-8">
-            <p className="mb-4 px-8 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          <div className="flex flex-col py-8" style={{ borderRight: "1px solid rgba(26,190,189,0.10)" }}>
+            <p
+              className="mb-4 px-8 text-[10px] font-bold uppercase tracking-[0.18em]"
+              style={{ color: "rgba(26,190,189,0.50)" }}
+            >
               Platform capabilities
             </p>
             <nav>
@@ -83,17 +93,19 @@ export function PlatformFeatures() {
                   <button
                     key={f.id}
                     onClick={() => setActive(f.id)}
-                    className={`flex w-full items-center gap-3.5 px-8 py-4 text-left transition-colors ${
-                      isActive
-                        ? "border-l-2 border-primary bg-secondary/60 text-foreground"
-                        : "border-l-2 border-transparent text-muted-foreground hover:text-foreground"
-                    }`}
+                    className="flex w-full items-center gap-3.5 px-8 py-4 text-left transition-colors"
+                    style={{
+                      borderLeft: isActive ? "2px solid #1ABEBD" : "2px solid transparent",
+                      background: isActive ? "rgba(26,190,189,0.05)" : "transparent",
+                      color: isActive ? "#EBF2FF" : "rgba(235,242,255,0.38)",
+                    }}
                   >
                     <f.icon
-                      className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-primary" : "text-muted-foreground/60"}`}
+                      className="h-[17px] w-[17px] shrink-0"
                       strokeWidth={1.5}
+                      style={{ color: isActive ? "#1ABEBD" : "rgba(235,242,255,0.25)" }}
                     />
-                    <span className="text-sm font-medium">{f.label}</span>
+                    <span className="text-[13px] font-medium">{f.label}</span>
                   </button>
                 )
               })}
@@ -103,14 +115,14 @@ export function PlatformFeatures() {
           {/* right: product panel */}
           <div className="flex flex-col">
             {/* description bar */}
-            <div className="border-b border-border px-8 py-6">
-              <p className="max-w-lg text-sm leading-relaxed text-muted-foreground">
+            <div className="px-8 py-6" style={{ borderBottom: "1px solid rgba(26,190,189,0.10)" }}>
+              <p className="max-w-lg text-[13px] leading-relaxed" style={{ color: "rgba(235,242,255,0.48)" }}>
                 {current.description}
               </p>
             </div>
 
             {/* mock UI */}
-            <div className="flex-1 bg-card/30 p-6">
+            <div className="flex-1 p-6" style={{ background: "rgba(26,190,189,0.02)" }}>
               <Panel />
             </div>
           </div>

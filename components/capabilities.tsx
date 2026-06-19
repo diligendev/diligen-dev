@@ -25,51 +25,84 @@ const capabilities = [
 
 export function Capabilities() {
   return (
-    <section id="platform" className="border-b border-border">
-      <div className="mx-auto max-w-6xl px-6 py-28">
-        <div className="mx-auto max-w-2xl text-center">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-widest" style={{ color: "#1ABEBD" }}>
+    <section
+      id="platform"
+      className="relative border-b border-border overflow-hidden"
+      style={{ background: "#06101C" }}
+    >
+      {/* grid texture */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M56 0H0v56' stroke='%231ABEBD' stroke-width='0.35' fill='none' opacity='0.05'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      <div className="relative mx-auto max-w-6xl px-6 py-28">
+        <div className="flex flex-col gap-2 mb-16">
+          <p
+            className="text-[10px] font-bold uppercase tracking-[0.2em]"
+            style={{ color: "rgba(26,190,189,0.60)" }}
+          >
             Platform Capabilities
           </p>
           <h2 className="text-balance text-4xl font-bold leading-tight tracking-[-0.025em] text-foreground sm:text-5xl">
-            Say No Sooner. Say Yes With Conviction.
+            Say No Sooner.{" "}
+            <span style={{ color: "#EBF2FF", opacity: 0.5 }}>Say Yes With Conviction.</span>
           </h2>
+          <div
+            className="mt-4 h-px w-16"
+            style={{ background: "linear-gradient(90deg, #1ABEBD, transparent)" }}
+          />
         </div>
 
-        <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {capabilities.map((cap) => (
+        <div className="grid grid-cols-1 gap-px sm:grid-cols-2 lg:grid-cols-4" style={{ background: "rgba(26,190,189,0.08)" }}>
+          {capabilities.map((cap, i) => (
             <div
               key={cap.title}
-              className="overflow-hidden rounded-xl border border-border/60 bg-card"
+              className="group relative flex flex-col bg-[#06101C] transition-colors hover:bg-[#091420]"
             >
-              {/* dark navy header with teal icon ring */}
+              {/* header band with icon */}
               <div
-                className="flex h-44 items-center justify-center"
+                className="relative flex items-end justify-between p-6 pb-5"
                 style={{
-                  background: "linear-gradient(145deg, #0F2545 0%, #1C3A5E 100%)",
+                  borderBottom: "1px solid rgba(26,190,189,0.08)",
                 }}
               >
-                <div
-                  className="flex h-14 w-14 items-center justify-center rounded-full"
-                  style={{ border: "1.5px solid rgba(26,190,189,0.35)", background: "rgba(26,190,189,0.10)" }}
+                {/* step number */}
+                <span
+                  className="absolute right-5 top-5 font-mono text-[11px] font-semibold tabular-nums"
+                  style={{ color: "rgba(26,190,189,0.25)" }}
                 >
-                  <cap.icon
-                    className="h-6 w-6"
-                    style={{ color: "#1ABEBD" }}
-                    strokeWidth={1.5}
-                  />
+                  0{i + 1}
+                </span>
+                <div
+                  className="flex h-11 w-11 items-center justify-center rounded-sm"
+                  style={{
+                    border: "1px solid rgba(26,190,189,0.25)",
+                    background: "rgba(26,190,189,0.07)",
+                  }}
+                >
+                  <cap.icon className="h-5 w-5" style={{ color: "#1ABEBD" }} strokeWidth={1.5} />
                 </div>
               </div>
 
               {/* body */}
-              <div className="p-6">
-                <h3 className="text-base font-semibold leading-snug text-foreground">
+              <div className="flex flex-col flex-1 p-6 pt-5">
+                <h3 className="text-[14px] font-semibold leading-snug text-foreground">
                   {cap.title}
                 </h3>
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-3 text-[13px] leading-relaxed" style={{ color: "rgba(235,242,255,0.45)" }}>
                   {cap.body}
                 </p>
               </div>
+
+              {/* bottom teal accent bar — shows on hover */}
+              <div
+                className="h-px w-0 transition-all duration-300 group-hover:w-full"
+                style={{ background: "#1ABEBD" }}
+              />
             </div>
           ))}
         </div>

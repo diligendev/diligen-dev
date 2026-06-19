@@ -4,31 +4,53 @@ export function Narrative() {
   return (
     <section
       id="company"
-      className="border-b border-border"
-      style={{
-        background:
-          "linear-gradient(135deg, oklch(0.88 0.040 255) 0%, oklch(0.92 0.025 240) 50%, oklch(0.93 0.012 60) 100%)",
-      }}
+      className="relative border-b border-border overflow-hidden"
+      style={{ background: "#080F1C" }}
     >
-      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-16 px-6 py-28 lg:grid-cols-2">
+      {/* Shifted grid — slight angle for visual interest */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M56 0H0v56' stroke='%231ABEBD' stroke-width='0.35' fill='none' opacity='0.04'/%3E%3C/svg%3E")`,
+        }}
+      />
+      {/* Right teal glow wash */}
+      <div
+        className="pointer-events-none absolute right-0 top-0 h-full w-1/2"
+        aria-hidden
+        style={{ background: "radial-gradient(ellipse 80% 70% at 85% 50%, rgba(26,190,189,0.05), transparent 70%)" }}
+      />
+
+      <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-16 px-6 py-28 lg:grid-cols-2">
         {/* copy — left */}
         <div>
-          <p className="mb-5 text-sm font-semibold uppercase tracking-widest text-[oklch(0.40_0.080_264)]">
+          <p
+            className="mb-5 text-[10px] font-bold uppercase tracking-[0.2em]"
+            style={{ color: "rgba(26,190,189,0.60)" }}
+          >
             We Built the Product We Wished We Had
           </p>
-          <h2 className="text-balance text-[42px] font-semibold leading-[1.08] tracking-[-0.025em] text-[oklch(0.13_0.025_264)] sm:text-[52px]">
+          <h2
+            className="text-balance text-[42px] font-semibold leading-[1.08] tracking-[-0.025em] sm:text-[52px]"
+            style={{ color: "#EBF2FF" }}
+          >
             Because we&apos;ve been
             <br />
             in your seat.
           </h2>
-          <p className="mt-6 max-w-md text-base leading-relaxed text-[oklch(0.30_0.020_264)]">
+          <div
+            className="my-7 h-px w-12"
+            style={{ background: "linear-gradient(90deg, #1ABEBD, transparent)" }}
+          />
+          <p className="max-w-md text-[15px] leading-[1.75]" style={{ color: "rgba(235,242,255,0.52)" }}>
             Diligen is the first AI diligence platform built by private equity
             practitioners for private equity practitioners — because we&apos;ve lived the
             process ourselves. Where other tools summarize, Diligen delivers structured
             insights, real calculations, and audit-ready outputs in minutes. It mirrors
             your workflow, automates the heavy lift, and helps your team move faster.
           </p>
-          <p className="mt-4 max-w-md text-base leading-relaxed text-[oklch(0.30_0.020_264)]">
+          <p className="mt-4 max-w-md text-[15px] leading-[1.75]" style={{ color: "rgba(235,242,255,0.52)" }}>
             Whether you&apos;re killing bad deals faster or getting to &ldquo;yes&rdquo; before the
             competition, Diligen arms you with the context, clarity, and conviction to win.
             The smartest investors already use it — because in this market, speed isn&apos;t optional.
@@ -36,7 +58,12 @@ export function Narrative() {
           <div className="mt-10">
             <Link
               href="#demo"
-              className="inline-flex items-center rounded-[4px] border border-[oklch(0.30_0.025_264)/40] bg-[oklch(0.93_0.012_60)] px-7 py-3 text-sm font-normal text-[oklch(0.15_0.025_264)] transition-colors hover:bg-[oklch(0.90_0.014_60)]"
+              className="inline-flex items-center rounded-[3px] border px-7 py-3 text-sm font-normal tracking-wide transition-colors"
+              style={{
+                borderColor: "rgba(26,190,189,0.30)",
+                color: "#1ABEBD",
+                background: "rgba(26,190,189,0.06)",
+              }}
             >
               Book a Demo
             </Link>

@@ -15,7 +15,7 @@ export function SiteFooter() {
   }
 
   return (
-    <footer className="border-t border-border bg-background">
+    <footer className="border-t border-border" style={{ background: "#060E1A" }}>
       <div className="mx-auto max-w-6xl px-6 py-20">
         <div className="grid grid-cols-1 gap-16 lg:grid-cols-[1fr_auto_auto]">
           {/* left — brand + tagline + email capture */}
@@ -61,7 +61,8 @@ export function SiteFooter() {
             <div className="flex flex-col gap-3">
               <FooterLink href="/">Home</FooterLink>
               <FooterLink href="/platform">Diligence Platform</FooterLink>
-              <FooterLink href="#company">Company</FooterLink>
+              <FooterLink href="/company">Company</FooterLink>
+              <FooterLink href="/blog">Blog</FooterLink>
               <FooterLink href="#demo">Book a Demo</FooterLink>
             </div>
           </div>
@@ -98,10 +99,10 @@ export function SiteFooter() {
             &copy; {new Date().getFullYear()} Diligen, Inc. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
-            <Link href="#" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
+            <Link href="/privacy" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
               Privacy Policy
             </Link>
-            <Link href="#" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
+            <Link href="/terms" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
               Terms of Service
             </Link>
           </div>

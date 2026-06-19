@@ -13,8 +13,8 @@ const pillars = [
   },
   {
     icon: ShieldCheck,
-    title: "SOC 2 Type II certified",
-    body: "Independently audited under the AICPA Trust Services Criteria. Full reports available under NDA to qualified prospective clients.",
+    title: "Audit-ready access controls",
+    body: "Granular role-level permissions ensure only authorized team members access deal workspaces. Full activity logs available for internal compliance review.",
   },
   {
     icon: Eye,
@@ -27,62 +27,95 @@ const complianceItems = [
   "No training on your data",
   "Zero data retention after analysis",
   "AES-256 end-to-end encryption",
-  "SOC 2 Type II certified",
   "Role-level security (RLS) enforced",
+  "Granular audit logs & access controls",
   "FINRA & SEC data handling compliant",
 ]
 
 export function Security() {
   return (
-    <section id="security" className="border-b border-border">
-      <div className="mx-auto max-w-6xl px-6 py-28">
+    <section
+      id="security"
+      className="relative border-b border-border overflow-hidden"
+      style={{ background: "#080F1C" }}
+    >
+      {/* grid texture */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M56 0H0v56' stroke='%231ABEBD' stroke-width='0.35' fill='none' opacity='0.04'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      <div className="relative mx-auto max-w-6xl px-6 py-28">
         {/* section header */}
-        <div className="mb-20">
-          <p className="text-sm text-muted-foreground">Enterprise-grade protection</p>
-          <h2 className="mt-4 text-balance text-4xl font-semibold leading-tight tracking-[-0.025em] text-foreground sm:text-5xl">
+        <div className="mb-16">
+          <p
+            className="mb-4 text-[10px] font-bold uppercase tracking-[0.2em]"
+            style={{ color: "rgba(26,190,189,0.60)" }}
+          >
+            Enterprise-Grade Protection
+          </p>
+          <h2
+            className="text-balance text-4xl font-semibold leading-tight tracking-[-0.025em] sm:text-5xl"
+            style={{ color: "#EBF2FF" }}
+          >
             Security at the Forefront
           </h2>
+          <div
+            className="mt-5 h-px w-14"
+            style={{ background: "linear-gradient(90deg, #1ABEBD, transparent)" }}
+          />
         </div>
 
-        {/* two-column: badge left, copy + checklist right — Keye layout */}
+        {/* two-column */}
         <div className="grid grid-cols-1 items-start gap-16 lg:grid-cols-2">
-          {/* left: our own security emblem */}
           <div className="flex items-center justify-center">
             <SecurityBadge />
           </div>
 
-          {/* right: copy + checklist */}
           <div>
-            <p className="text-base leading-relaxed text-muted-foreground">
+            <p className="text-[15px] leading-[1.75]" style={{ color: "rgba(235,242,255,0.52)" }}>
               Diligen uncovers what others miss — from cohort trends to margin compression
               and cost drivers — surfacing what matters most. Faster decisions, deeper conviction,
               and fewer mistakes. With enterprise-grade security built from day one, no data
-              retained, and no training on your files, you get contextual insights without ever
+              retained, and no training on your files, you get contextual insights without
               compromising institutional trust.
             </p>
 
             <ul className="mt-8 flex flex-col gap-3">
               {complianceItems.map((item) => (
                 <li key={item} className="flex items-center gap-3">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[3px] border border-primary/40 bg-primary/10">
-                    <svg viewBox="0 0 12 12" className="h-3 w-3 text-primary" fill="none">
+                  <span
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[2px]"
+                    style={{ border: "1px solid rgba(26,190,189,0.35)", background: "rgba(26,190,189,0.08)" }}
+                  >
+                    <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" style={{ color: "#1ABEBD" }}>
                       <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </span>
-                  <span className="text-sm text-foreground">{item}</span>
+                  <span className="text-[13px]" style={{ color: "rgba(235,242,255,0.70)" }}>{item}</span>
                 </li>
               ))}
             </ul>
           </div>
         </div>
 
-        {/* four pillars below */}
-        <div className="mt-20 grid grid-cols-1 gap-px bg-border/50 sm:grid-cols-2 lg:grid-cols-4">
+        {/* four pillars */}
+        <div
+          className="mt-20 grid grid-cols-1 gap-px sm:grid-cols-2 lg:grid-cols-4"
+          style={{ background: "rgba(26,190,189,0.08)" }}
+        >
           {pillars.map((p) => (
-            <div key={p.title} className="flex flex-col gap-4 bg-background px-8 py-8">
-              <p.icon className="h-5 w-5 text-primary" strokeWidth={1.5} />
-              <h3 className="text-sm font-semibold text-foreground">{p.title}</h3>
-              <p className="text-sm leading-relaxed text-muted-foreground">{p.body}</p>
+            <div
+              key={p.title}
+              className="flex flex-col gap-4 px-8 py-8"
+              style={{ background: "#080F1C" }}
+            >
+              <p.icon className="h-5 w-5" style={{ color: "#1ABEBD" }} strokeWidth={1.5} />
+              <h3 className="text-[13px] font-semibold" style={{ color: "#EBF2FF" }}>{p.title}</h3>
+              <p className="text-[13px] leading-relaxed" style={{ color: "rgba(235,242,255,0.45)" }}>{p.body}</p>
             </div>
           ))}
         </div>

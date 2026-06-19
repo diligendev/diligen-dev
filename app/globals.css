@@ -6,7 +6,7 @@
 
 @theme inline {
   --font-heading: Inter, ui-sans-serif, system-ui, sans-serif;
-  --font-sans:    Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-sans:    var(--font-jakarta), 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono:    'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
 
   --color-sidebar-ring:               var(--sidebar-ring);
@@ -65,25 +65,29 @@
 :root {
   color-scheme: dark;
 
-  --background:          #0D1E35;
-  --foreground:          #E8EEF7;
-  --card:                #13273F;
-  --card-foreground:     #E8EEF7;
-  --popover:             #13273F;
-  --popover-foreground:  #E8EEF7;
+  /* Deep charcoal-navy — richer and more premium than plain #0D1E35 */
+  --background:          #06101C;
+  --foreground:          #EBF2FF;
+  --card:                #0B1929;
+  --card-foreground:     #EBF2FF;
+  --popover:             #0B1929;
+  --popover-foreground:  #EBF2FF;
   --primary:             #1ABEBD;
-  --primary-foreground:  #0D1E35;
-  --secondary:           #1A2E48;
-  --secondary-foreground:#C4D0E3;
-  --muted:               #1A2E48;
-  --muted-foreground:    #617898;
+  --primary-foreground:  #06101C;
+  --secondary:           #0F2038;
+  --secondary-foreground:#B8CCDF;
+  --muted:               #0F2038;
+  --muted-foreground:    #5A7A9E;
   --accent:              #1ABEBD;
-  --accent-foreground:   #0D1E35;
+  --accent-foreground:   #06101C;
   --destructive:         #E05252;
-  --border:              #1E3352;
-  --input:               #1E3352;
+  --border:              #152D48;
+  --input:               #152D48;
   --ring:                #1ABEBD;
   --radius:              0.25rem;
+
+  /* Brand gold — for headline metrics, premium feel */
+  --gold:                #C8A84B;
 
   --chart-1: #1ABEBD;
   --chart-2: #1C3A5E;
@@ -91,13 +95,13 @@
   --chart-4: #28A89D;
   --chart-5: #3EC6A4;
 
-  --sidebar:                    #0D1E35;
-  --sidebar-foreground:         #C4D0E3;
+  --sidebar:                    #06101C;
+  --sidebar-foreground:         #B8CCDF;
   --sidebar-primary:            #1ABEBD;
-  --sidebar-primary-foreground: #0D1E35;
-  --sidebar-accent:             #1A2E48;
-  --sidebar-accent-foreground:  #E8EEF7;
-  --sidebar-border:             #1E3352;
+  --sidebar-primary-foreground: #06101C;
+  --sidebar-accent:             #0F2038;
+  --sidebar-accent-foreground:  #EBF2FF;
+  --sidebar-border:             #152D48;
   --sidebar-ring:               #1ABEBD;
 }
 
@@ -191,5 +195,35 @@
   .font-mono {
     font-feature-settings: 'tnum' 1, 'zero' 1;
     letter-spacing: -0.01em;
+  }
+  /* Keep the dashboard/platform on Inter — only marketing pages use Jakarta */
+  .app-shell {
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+/* Print isolation — used by the IC memo so Print / Save PDF outputs only the
+   document, not the app shell (sidebar, headers, toolbar). */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .memo-printable,
+  .memo-printable * {
+    visibility: visible !important;
+  }
+  .memo-printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  @page {
+    margin: 16mm;
   }
 }

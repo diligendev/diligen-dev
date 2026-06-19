@@ -15,8 +15,16 @@ export function PlatformCta() {
   }
 
   return (
-    <section id="cta" className="border-b border-border">
-      <div className="mx-auto max-w-6xl px-6 py-28">
+    <section id="cta" className="relative border-b overflow-hidden" style={{ borderColor: "rgba(26,190,189,0.10)", background: "#06101C" }}>
+      {/* grid texture */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M56 0H0v56' stroke='%231ABEBD' stroke-width='0.35' fill='none' opacity='0.04'/%3E%3C/svg%3E")`,
+        }}
+      />
+      <div className="relative mx-auto max-w-6xl px-6 py-28">
         <div className="mx-auto max-w-xl text-center">
           <h2 className="text-balance text-4xl font-light leading-tight tracking-tight sm:text-5xl">
             Book a Demo

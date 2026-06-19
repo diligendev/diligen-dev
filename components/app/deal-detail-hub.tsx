@@ -23,6 +23,8 @@ import { DealDiligenceTab } from "@/components/app/deal-diligence-tab"
 import { DealNotesTab } from "@/components/app/deal-notes-tab"
 import { DealAnalysesTab } from "@/components/app/deal-analyses-tab"
 import { FinancialWorkbook } from "@/components/app/financial-workbook"
+import { ValuationWorkbench } from "@/components/app/valuation-workbench"
+import { DealMemoTab } from "@/components/app/deal-memo-tab"
 import {
   DEAL_STAGES,
   type Deal,
@@ -41,6 +43,8 @@ const TABS = [
   { id: "kpi", label: "KPI History" },
   { id: "analyses", label: "Analyses" },
   { id: "financials", label: "Financials" },
+  { id: "valuation", label: "Valuation" },
+  { id: "memo", label: "IC Memo" },
   { id: "documents", label: "Documents" },
   { id: "diligence", label: "Diligence" },
   { id: "notes", label: "Notes" },
@@ -80,11 +84,10 @@ export function DealDetailHub({
         <Button
           size="sm"
           className="h-7 rounded bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
-          onClick={() =>
-            toast.info(
-              "PDF export generates a deal one-pager from this workspace — enabled once server-side reporting is connected.",
-            )
-          }
+          onClick={() => {
+            setTab("memo")
+            toast.info("Opening the IC memo — review the thesis, then click Print / Save PDF.")
+          }}
         >
           <Download data-icon="inline-start" />
           Export PDF
@@ -189,6 +192,17 @@ export function DealDetailHub({
           )}
           {tab === "financials" && (
             <FinancialWorkbook companyName={deal.company} />
+          )}
+          {tab === "valuation" && (
+            <ValuationWorkbench companyName={deal.company} analysis={analysis} />
+          )}
+          {tab === "memo" && (
+            <DealMemoTab
+              deal={deal}
+              analysis={analysis}
+              kpiHistory={kpiHistory}
+              checklist={checklist}
+            />
           )}
           {tab === "documents" && <DealDocumentsTab documents={documents} />}
           {tab === "diligence" && <DealDiligenceTab items={checklist} />}

@@ -32,7 +32,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -228,7 +227,8 @@ export function AppSidebar({
                 align="start"
                 className="w-(--anchor-width) min-w-52"
               >
-                <DropdownMenuLabel className="font-normal">
+                {/* Plain div — DropdownMenuLabel (GroupLabel) requires a Group parent and crashes without one */}
+                <div className="px-1.5 py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 flex-col gap-0.5">
                       <span className="truncate text-sm font-medium text-foreground">
@@ -283,7 +283,7 @@ export function AppSidebar({
                       )
                     })}
                   </div>
-                </DropdownMenuLabel>
+                </div>
                 <DropdownMenuSeparator />
 
                 <DropdownMenuGroup>
