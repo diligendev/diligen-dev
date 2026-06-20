@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   UserRound,
   Building2,
@@ -13,11 +14,22 @@ import {
   Check,
   Plus,
   Monitor,
+  Ban,
+  Repeat2,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/app/page-header"
+import { InviteMemberDialog } from "@/components/app/invite-member-dialog"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -32,12 +44,27 @@ import {
 import {
   PLANS,
   subscription,
-  teamMembers,
   getUsage,
   type PlanId,
   type UsageMetric,
 } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
+
+type WorkspaceRole = "owner" | "admin" | "member" | "viewer"
+
+type SettingsMember = {
+  id: string
+  name: string
+  email: string
+  role: WorkspaceRole
+}
+
+type PendingInvite = {
+  id: string
+  email: string
+  role: "admin" | "member" | "viewer"
+  expiresAt: string
+}
 
 const SECTIONS = [
   { id: "profile", label: "Profile", icon: UserRound },
@@ -61,10 +88,14 @@ function isSettingsSection(value: string | undefined): value is SectionId {
 export function SettingsView({
   user,
   organization,
+  members,
+  pendingInvites,
   initialSection,
 }: {
-  user: { name: string; email: string; role: string }
+  user: { name: string; email: string; role: WorkspaceRole }
   organization: { name: string; slug: string }
+  members: SettingsMember[]
+  pendingInvites: PendingInvite[]
   initialSection?: string
 }) {
   const [section, setSection] = useState<SectionId>(
@@ -104,7 +135,14 @@ export function SettingsView({
           {section === "workspace" && <WorkspaceSection organization={organization} />}
           {section === "billing" && <BillingSection />}
           {section === "usage" && <UsageSection />}
-          {section === "team" && <TeamSection />}
+          {section === "team" && (
+            <TeamSection
+              currentUserRole={user.role}
+              currentUserEmail={user.email}
+              members={members}
+              pendingInvites={pendingInvites}
+            />
+          )}
           {section === "notifications" && <NotificationsSection />}
           {section === "scoring" && <ScoringSection />}
           {section === "security" && <SecuritySection />}
@@ -211,10 +249,10 @@ function fmtNum(n: number, unit?: string) {
 function ProfileSection({
   user,
 }: {
-  user: { name: string; email: string; role: string }
+  user: { name: string; email: string; role: "owner" | "admin" | "member" | "viewer" }
 }) {
   const [name, setName] = useState(user.name)
-  const role = user.role
+  const [title, setTitle] = useState("Principal")
   const [timezone, setTimezone] = useState("America/New_York")
   const initials =
     name
@@ -267,9 +305,25 @@ function ProfileSection({
               className="h-9 cursor-not-allowed rounded-sm bg-secondary/40 text-[13px] text-muted-foreground"
             />
           </Field>
+          <Field label="Title">
+            <Select value={title} onValueChange={(v) => v && setTitle(v)}>
+              <SelectTrigger className="h-9 rounded-sm text-[13px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["Managing Partner", "Principal", "Vice President", "Associate", "Analyst"].map(
+                  (r) => (
+                    <SelectItem key={r} value={r} className="text-[13px]">
+                      {r}
+                    </SelectItem>
+                  ),
+                )}
+              </SelectContent>
+            </Select>
+          </Field>
           <Field label="Workspace role" hint="Managed by workspace owners and admins.">
             <Input
-              value={role}
+              value={user.role}
               readOnly
               className="h-9 cursor-not-allowed rounded-sm bg-secondary/40 text-[13px] capitalize text-muted-foreground"
             />
@@ -336,9 +390,8 @@ function WorkspaceSection({
             className="h-9 rounded-sm text-[13px]"
           />
         </Field>
-        <Field label="Workspace slug" htmlFor="ws-slug" hint="Used internally for workspace routing and references.">
+        <Field label="Workspace slug" hint="Used internally for workspace routing and audit records.">
           <Input
-            id="ws-slug"
             value={organization.slug}
             readOnly
             className="h-9 cursor-not-allowed rounded-sm bg-secondary/40 text-[13px] text-muted-foreground"
@@ -612,32 +665,129 @@ function Meter({ m }: { m: UsageMetric }) {
 // Team
 // ---------------------------------------------------------------------------
 
-function TeamSection() {
+function TeamSection({
+  currentUserRole,
+  currentUserEmail,
+  members,
+  pendingInvites,
+}: {
+  currentUserRole: WorkspaceRole
+  currentUserEmail: string
+  members: SettingsMember[]
+  pendingInvites: PendingInvite[]
+}) {
+  const router = useRouter()
+  const [confirmAction, setConfirmAction] = useState<
+    | {
+        type: "remove-member"
+        id: string
+        label: string
+      }
+    | {
+        type: "revoke-invite"
+        id: string
+        label: string
+      }
+    | null
+  >(null)
+  const [actionLoading, setActionLoading] = useState(false)
   const seatLimit = PLANS[subscription.planId].limits.seats
-  const seatsUsed = teamMembers.length
+  const seatsUsed = members.length
   const atCapacity = seatLimit >= 0 && seatsUsed >= seatLimit
+  const canInvite =
+    !atCapacity && (currentUserRole === "owner" || currentUserRole === "admin")
+  const canManage = currentUserRole === "owner" || currentUserRole === "admin"
+
+  async function updateMemberRole(memberId: string, role: WorkspaceRole) {
+    const response = await fetch(`/api/team/members/${memberId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    })
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      toast.error(payload.error ?? "Could not update role")
+      return
+    }
+
+    toast.success("Role updated")
+    router.refresh()
+  }
+
+  async function removeMember(memberId: string) {
+    const response = await fetch(`/api/team/members/${memberId}`, {
+      method: "DELETE",
+    })
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      toast.error(payload.error ?? "Could not remove member")
+      return
+    }
+
+    toast.success("Member removed")
+    router.refresh()
+  }
+
+  async function revokeInvite(inviteId: string) {
+    const response = await fetch(`/api/team/invites/${inviteId}`, {
+      method: "PATCH",
+    })
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      toast.error(payload.error ?? "Could not revoke invite")
+      return
+    }
+
+    toast.success("Invite revoked")
+    router.refresh()
+  }
+
+  async function confirmPendingAction() {
+    if (!confirmAction) return
+    setActionLoading(true)
+
+    if (confirmAction.type === "remove-member") {
+      await removeMember(confirmAction.id)
+    } else {
+      await revokeInvite(confirmAction.id)
+    }
+
+    setActionLoading(false)
+    setConfirmAction(null)
+  }
 
   return (
-    <SectionCard
-      title="Team"
-      description={`${seatsUsed} of ${seatLimit < 0 ? "unlimited" : seatLimit} seats in use.`}
-      footer={
-        <Button
-          size="sm"
-          disabled={atCapacity}
-          onClick={() =>
-            toast.success("Invite sent — member provisioning activates with the backend.")
-          }
-          className="h-8 rounded-sm bg-accent px-3 text-[13px] text-accent-foreground hover:bg-accent/90"
-        >
-          <Plus data-icon="inline-start" />
-          Invite member
-        </Button>
-      }
-    >
+    <>
+      <SectionCard
+        title="Team"
+        description={`${seatsUsed} of ${seatLimit < 0 ? "unlimited" : seatLimit} seats in use.`}
+        footer={
+          <InviteMemberDialog
+            disabled={!canInvite}
+            trigger={
+              <Button
+                size="sm"
+                disabled={!canInvite}
+                className="h-8 rounded-sm bg-accent px-3 text-[13px] text-accent-foreground hover:bg-accent/90"
+              >
+                <Plus data-icon="inline-start" />
+                Invite member
+              </Button>
+            }
+          />
+        }
+      >
       {atCapacity && (
         <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
           All seats are in use. Upgrade your plan to invite more members.
+        </p>
+      )}
+      {!atCapacity && !canInvite && (
+        <p className="mb-3 rounded border border-border bg-secondary/40 px-3 py-2 text-[12px] text-muted-foreground">
+          Only workspace owners and admins can invite members.
         </p>
       )}
       <div className="overflow-hidden rounded border border-border">
@@ -646,15 +796,20 @@ function TeamSection() {
             <tr className="border-b border-border bg-secondary/50 text-left">
               <th className="px-3 py-2 atlas-label">Member</th>
               <th className="px-3 py-2 atlas-label">Role</th>
+              <th className="w-14 px-3 py-2 atlas-label">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {teamMembers.map((mbr) => (
-              <tr key={mbr.email} className="transition-colors hover:bg-secondary/30">
+            {members.map((mbr) => {
+              const isCurrentUser =
+                mbr.email.toLowerCase() === currentUserEmail.toLowerCase()
+
+              return (
+              <tr key={mbr.id} className="transition-colors hover:bg-secondary/30">
                 <td className="px-3 py-2.5">
                   <div className="flex items-center gap-2.5">
                     <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground">
-                      {mbr.initials}
+                      {initialsFor(mbr.name, mbr.email)}
                     </span>
                     <div className="min-w-0">
                       <p className="truncate font-medium text-foreground">{mbr.name}</p>
@@ -662,16 +817,176 @@ function TeamSection() {
                     </div>
                   </div>
                 </td>
-                <td className="px-3 py-2.5 text-muted-foreground">{mbr.role}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">
+                  {canManage ? (
+                    <Select
+                      value={mbr.role}
+                      disabled={isCurrentUser}
+                      onValueChange={(value) =>
+                        void updateMemberRole(mbr.id, value as WorkspaceRole)
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-32 rounded-sm text-[12px] capitalize">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="viewer">Viewer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="capitalize">{mbr.role}</span>
+                  )}
+                </td>
+                <td className="px-3 py-2.5 text-right">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled
+                    className="text-muted-foreground"
+                    title="Transfer ownership"
+                  >
+                    <Repeat2 />
+                    <span className="sr-only">Transfer ownership</span>
+                  </Button>
+                </td>
               </tr>
-            ))}
+              )
+            })}
+            {members.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-3 py-5 text-center text-muted-foreground">
+                  No members found.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
-    </SectionCard>
+      {pendingInvites.length > 0 && (
+        <div className="mt-4 overflow-hidden rounded border border-border">
+          <div className="border-b border-border bg-secondary/40 px-3 py-2">
+            <p className="atlas-label">Pending invites</p>
+          </div>
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-border bg-secondary/50 text-left">
+                <th className="px-3 py-2 atlas-label">Email</th>
+                <th className="px-3 py-2 atlas-label">Role</th>
+                <th className="px-3 py-2 atlas-label">Expires</th>
+                <th className="w-14 px-3 py-2 atlas-label">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {pendingInvites.map((invite) => (
+                <tr key={invite.id} className="transition-colors hover:bg-secondary/30">
+                  <td className="px-3 py-2.5 font-medium text-foreground">
+                    {invite.email}
+                  </td>
+                  <td className="px-3 py-2.5 capitalize text-muted-foreground">
+                    {invite.role}
+                  </td>
+                  <td className="px-3 py-2.5 text-muted-foreground">
+                    {formatDate(invite.expiresAt)}
+                  </td>
+                  <td className="px-3 py-2.5 text-right">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={!canManage}
+                      onClick={() =>
+                        setConfirmAction({
+                          type: "revoke-invite",
+                          id: invite.id,
+                          label: invite.email,
+                        })
+                      }
+                      className="text-muted-foreground hover:text-destructive"
+                      title="Revoke invite"
+                    >
+                      <Ban />
+                      <span className="sr-only">Revoke invite</span>
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      </SectionCard>
+
+      <Dialog
+        open={!!confirmAction}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {confirmAction?.type === "remove-member"
+                ? "Remove member"
+                : "Revoke invite"}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmAction?.type === "remove-member"
+                ? `${confirmAction.label} will lose access to this workspace.`
+                : `${confirmAction?.label} will no longer be able to accept this invite.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmAction(null)}
+              disabled={actionLoading}
+              className="rounded-sm"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void confirmPendingAction()}
+              disabled={actionLoading}
+              className="rounded-sm"
+            >
+              {actionLoading ? "Working..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
+function initialsFor(name: string, email: string) {
+  const source = name || email
+  const parts = source
+    .replace(/@.*/, "")
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  }
+
+  return source.slice(0, 2).toUpperCase() || "DU"
+}
+
+function formatDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "Unknown"
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+}
 // ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------

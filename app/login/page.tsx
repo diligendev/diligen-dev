@@ -1,15 +1,21 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
 
+import { InviteLinkHandler } from "@/app/login/invite-link-handler"
 import { LoginForm } from "@/app/login/login-form"
 import { DiligenMark } from "@/components/meridian-mark"
 import { createClient } from "@/lib/supabase/server"
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>
+}) {
   const supabase = await createClient()
   const { data } = await supabase.auth.getClaims()
+  const { next } = await searchParams
 
-  if (data?.claims) {
+  if (data?.claims && !next) {
     redirect("/dashboard")
   }
 
@@ -61,6 +67,7 @@ export default async function LoginPage() {
             </span>
           </Link>
 
+          <InviteLinkHandler />
           <LoginForm />
 
           <div className="mt-8 border-t border-border pt-6">
@@ -77,4 +84,3 @@ export default async function LoginPage() {
     </div>
   )
 }
-

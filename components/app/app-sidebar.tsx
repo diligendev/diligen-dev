@@ -107,7 +107,7 @@ export function AppSidebar({
   user: {
     name: string
     email: string
-    role: string
+    role: "owner" | "admin" | "member" | "viewer"
     organizationName: string
   }
 }) {

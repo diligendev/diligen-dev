@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { finalizeCurrentUserInvitation } from "@/lib/auth/invitations"
 import { safeRedirectPath } from "@/lib/auth/redirects"
 import { createClient } from "@/lib/supabase/server"
 
@@ -16,6 +17,14 @@ export async function GET(request: NextRequest) {
       const loginUrl = new URL("/login", request.url)
       loginUrl.searchParams.set("error", "auth_callback_failed")
       return NextResponse.redirect(loginUrl)
+    }
+
+    const completedInvite = await finalizeCurrentUserInvitation()
+
+    if (completedInvite) {
+      const setPasswordUrl = new URL("/set-password", request.url)
+      setPasswordUrl.searchParams.set("next", next)
+      return NextResponse.redirect(setPasswordUrl)
     }
   }
 

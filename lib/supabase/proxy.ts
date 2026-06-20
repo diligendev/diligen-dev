@@ -52,7 +52,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  if (isAuthed && request.nextUrl.pathname === "/login") {
+  if (
+    isAuthed &&
+    request.nextUrl.pathname === "/login" &&
+    !request.nextUrl.searchParams.has("next")
+  ) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = "/dashboard"
     redirectUrl.search = ""
