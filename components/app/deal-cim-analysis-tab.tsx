@@ -1,15 +1,23 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check } from "lucide-react"
+import {
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  FileSearch,
+  Loader2,
+  Sparkles,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Section } from "@/components/app/section"
 import { RedFlagItem } from "@/components/app/red-flag-item"
 import { Textarea } from "@/components/ui/textarea"
+import { Progress } from "@/components/ui/progress"
 import type { DealAnalysis } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 
@@ -28,22 +36,64 @@ const qualityConfig: Record<string, { bg: string; fg: string; ring: string }> = 
   Low: { bg: "bg-red-50", fg: "text-red-700", ring: "ring-red-200" },
 }
 
+const ANALYSIS_STAGES = [
+  "Reading source material",
+  "Extracting financial metrics",
+  "Evaluating EBITDA adjustments",
+  "Identifying risks and red flags",
+  "Preparing diligence questions",
+  "Saving analysis to workspace",
+]
+
+type AnalysisPhase = "input" | "processing" | "success" | "error"
+
 export function DealCimAnalysisTab({
   dealId,
   a,
+  hasSavedAnalysis,
+  uploadedCim,
 }: {
   dealId: string
   a: DealAnalysis
+  hasSavedAnalysis: boolean
+  uploadedCim: boolean
 }) {
   const router = useRouter()
   const [documentText, setDocumentText] = useState("")
-  const [running, setRunning] = useState(false)
+  const [phase, setPhase] = useState<AnalysisPhase>("input")
+  const [stageIndex, setStageIndex] = useState(0)
+  const [errorMessage, setErrorMessage] = useState("")
+  const resultRef = useRef<HTMLDivElement>(null)
+  const running = phase === "processing"
   const rec = recConfig[a.recommendation] ?? recConfig["Needs More Information"]
   const quality = qualityConfig[a.ebitdaQuality] ?? qualityConfig["Moderate"]
 
+  useEffect(() => {
+    if (!running) return
+
+    const interval = window.setInterval(() => {
+      setStageIndex((current) =>
+        Math.min(current + 1, ANALYSIS_STAGES.length - 1),
+      )
+    }, 4500)
+
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+    }
+    window.addEventListener("beforeunload", warnBeforeLeaving)
+
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener("beforeunload", warnBeforeLeaving)
+    }
+  }, [running])
+
   async function runAiAnalysis(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setRunning(true)
+    if (running) return
+    setErrorMessage("")
+    setStageIndex(0)
+    setPhase("processing")
 
     const response = await fetch(`/api/deals/${dealId}/analysis/run`, {
       method: "POST",
@@ -55,19 +105,37 @@ export function DealCimAnalysisTab({
     const payload = await response.json().catch(() => ({}))
 
     if (!response.ok) {
-      toast.error(payload.error ?? "AI analysis failed")
-      setRunning(false)
+      const message = payload.error ?? "AI analysis failed"
+      setErrorMessage(message)
+      setPhase("error")
+      toast.error(message)
       return
     }
 
-    toast.success("AI analysis saved")
+    setStageIndex(ANALYSIS_STAGES.length - 1)
+    setPhase("success")
+    toast.success("Analysis complete")
     setDocumentText("")
-    setRunning(false)
     router.refresh()
+    window.setTimeout(() => {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, 700)
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={resultRef} className="flex flex-col gap-3">
+      <AnalysisRunner
+        documentText={documentText}
+        errorMessage={errorMessage}
+        hasSavedAnalysis={hasSavedAnalysis}
+        onChange={setDocumentText}
+        onRetry={() => setPhase("input")}
+        onSubmit={runAiAnalysis}
+        phase={phase}
+        stageIndex={stageIndex}
+        uploadedCim={uploadedCim}
+      />
+
       {/* Recommendation banner */}
       <div
         className={cn(
@@ -215,32 +283,158 @@ export function DealCimAnalysisTab({
         </ol>
       </Section>
 
-      <Section
-        title="Run AI Analysis"
-        description="Paste CIM or deal text. The AI will extract structured diligence output and save it to this deal."
-      >
-        <form onSubmit={runAiAnalysis} className="flex flex-col gap-3">
+    </div>
+  )
+}
+
+function AnalysisRunner({
+  documentText,
+  errorMessage,
+  hasSavedAnalysis,
+  onChange,
+  onRetry,
+  onSubmit,
+  phase,
+  stageIndex,
+  uploadedCim,
+}: {
+  documentText: string
+  errorMessage: string
+  hasSavedAnalysis: boolean
+  onChange: (value: string) => void
+  onRetry: () => void
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
+  phase: AnalysisPhase
+  stageIndex: number
+  uploadedCim: boolean
+}) {
+  const progress = Math.round(
+    ((stageIndex + 1) / ANALYSIS_STAGES.length) * (phase === "success" ? 100 : 88),
+  )
+
+  return (
+    <Section
+      title={hasSavedAnalysis ? "Run Updated Analysis" : "Analyze CIM"}
+      description="One analysis flow for pasted text today and automatic PDF extraction when document processing is connected."
+    >
+      {phase === "processing" && (
+        <div className="flex min-h-56 flex-col justify-center gap-5 py-3">
+          <div className="flex items-start gap-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded bg-accent/10 text-accent">
+              <Loader2 className="size-5 animate-spin" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-semibold text-foreground">
+                Building first-pass deal analysis
+              </p>
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                Keep this page open. The analysis will be saved to this workspace.
+              </p>
+            </div>
+          </div>
+
+          <Progress value={progress} className="h-1.5" />
+
+          <ol className="grid gap-2 sm:grid-cols-2">
+            {ANALYSIS_STAGES.map((label, index) => {
+              const complete = index < stageIndex
+              const active = index === stageIndex
+              return (
+                <li
+                  key={label}
+                  className={cn(
+                    "flex min-h-9 items-center gap-2 rounded border px-3 py-2 text-[12px] transition-colors",
+                    active && "border-accent/40 bg-accent/5 text-foreground",
+                    complete && "border-border bg-secondary/30 text-foreground",
+                    !active && !complete && "border-border text-muted-foreground",
+                  )}
+                >
+                  {complete ? (
+                    <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" />
+                  ) : active ? (
+                    <Loader2 className="size-3.5 shrink-0 animate-spin text-accent" />
+                  ) : (
+                    <span className="size-3.5 shrink-0 rounded-full border border-border" />
+                  )}
+                  {label}
+                </li>
+              )
+            })}
+          </ol>
+        </div>
+      )}
+
+      {phase === "success" && (
+        <div className="flex min-h-48 flex-col items-center justify-center gap-3 py-6 text-center">
+          <span className="flex size-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+            <CheckCircle2 className="size-6" />
+          </span>
+          <div>
+            <p className="text-[15px] font-semibold text-foreground">
+              Analysis complete
+            </p>
+            <p className="mt-1 max-w-md text-[12px] leading-relaxed text-muted-foreground">
+              Structured output was saved to this deal. Results below are AI-generated and should be verified during diligence.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {phase === "error" && (
+        <div className="flex min-h-48 flex-col items-center justify-center gap-3 py-6 text-center">
+          <span className="flex size-12 items-center justify-center rounded-full bg-red-50 text-red-700 ring-1 ring-red-200">
+            <AlertCircle className="size-6" />
+          </span>
+          <div>
+            <p className="text-[15px] font-semibold text-foreground">
+              Analysis could not be completed
+            </p>
+            <p className="mt-1 max-w-md text-[12px] leading-relaxed text-muted-foreground">
+              {errorMessage}
+            </p>
+          </div>
+          <Button type="button" variant="outline" onClick={onRetry}>
+            Try again
+          </Button>
+        </div>
+      )}
+
+      {phase === "input" && (
+        <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          {uploadedCim && (
+            <div className="flex items-start gap-3 rounded border border-accent/30 bg-accent/5 px-3 py-2.5">
+              <FileSearch className="mt-0.5 size-4 shrink-0 text-accent" />
+              <div>
+                <p className="text-[12px] font-medium text-foreground">
+                  CIM attached to this deal
+                </p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                  Automatic PDF extraction is not connected yet. Paste the PDF text below to run the same analysis pipeline now.
+                </p>
+              </div>
+            </div>
+          )}
           <Textarea
             value={documentText}
-            onChange={(e) => setDocumentText(e.target.value)}
-            placeholder="Paste CIM text, deal notes, or dummy analysis text here..."
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="Paste CIM text or deal notes here..."
             className="min-h-56 resize-y rounded-sm text-[13px] leading-relaxed focus-visible:ring-accent"
           />
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-[11px] text-muted-foreground">
-              Requires `ANTHROPIC_API_KEY` in `.env.local`.
+              Minimum 500 characters. AI-generated output must be verified.
             </p>
             <Button
               type="submit"
-              disabled={documentText.trim().length < 500 || running}
+              disabled={documentText.trim().length < 500}
               className="rounded-sm bg-accent text-accent-foreground hover:bg-accent/90"
             >
-              {running ? "Analyzing..." : "Run AI analysis"}
+              <Sparkles data-icon="inline-start" />
+              {hasSavedAnalysis ? "Run updated analysis" : "Run AI analysis"}
             </Button>
           </div>
         </form>
-      </Section>
-
-    </div>
+      )}
+    </Section>
   )
 }

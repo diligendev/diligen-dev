@@ -108,13 +108,13 @@ export function UploadDealDialog({
 
     setProgress(100)
     toast.success(`Deal created: ${company}`, {
-      description: "CIM metadata saved. Extraction pipeline comes next.",
+      description: "CIM attached. Continue in the analysis workspace.",
     })
     setOpen(false)
     reset()
     router.refresh()
     if (payload.id) {
-      router.push(`/deals/${payload.id}`)
+      router.push(`/deals/${payload.id}?tab=analysis&source=upload`)
     }
   }
 

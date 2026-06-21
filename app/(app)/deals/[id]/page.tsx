@@ -5,13 +5,13 @@ import {
   getCurrentOrganizationCimAnalysis,
   getCurrentOrganizationDeal,
   getCurrentOrganizationDealDocuments,
+  getCurrentOrganizationDealNotes,
 } from "@/lib/data/deals"
 import {
   getDeal,
   getAnalysis,
   getChecklist,
   getDocuments,
-  getNotes,
   getKpiHistory,
 } from "@/lib/mock-data"
 
@@ -23,18 +23,21 @@ export default async function DealAnalysisPage({
   const { id } = await params
   const deal = (await getCurrentOrganizationDeal(id)) ?? getDeal(id)
   if (!deal) notFound()
-  const [dbDocuments, dbAnalysis] = await Promise.all([
+  const [dbDocuments, savedAnalysis, notes] = await Promise.all([
     getCurrentOrganizationDealDocuments(id),
     getCurrentOrganizationCimAnalysis(id),
+    getCurrentOrganizationDealNotes(id),
   ])
 
   return (
     <DealDetailHub
       deal={deal}
-      analysis={dbAnalysis ?? getAnalysis(id)}
+      analysis={savedAnalysis?.analysis ?? getAnalysis(id)}
+      analysisMetadata={savedAnalysis?.metadata ?? null}
+      hasSavedAnalysis={savedAnalysis != null}
       checklist={getChecklist(id)}
       documents={dbDocuments.length > 0 ? dbDocuments : getDocuments(id)}
-      notes={getNotes(id)}
+      notes={notes}
       kpiHistory={getKpiHistory(id)}
     />
   )

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, Download } from "lucide-react"
 import { toast } from "sonner"
 
@@ -32,11 +32,12 @@ import {
   type DealAnalysis,
   type ChecklistItem,
   type DealDocument,
-  type DealNote,
   type KpiEntry,
   type DealStage,
 } from "@/lib/mock-data"
+import type { DealNote } from "@/lib/types/deal-note"
 import { cn } from "@/lib/utils"
+import type { AnalysisMetadata } from "@/lib/data/deals"
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -54,6 +55,8 @@ const TABS = [
 export function DealDetailHub({
   deal,
   analysis,
+  analysisMetadata,
+  hasSavedAnalysis,
   checklist,
   documents,
   notes,
@@ -61,13 +64,19 @@ export function DealDetailHub({
 }: {
   deal: Deal
   analysis: DealAnalysis
+  analysisMetadata: AnalysisMetadata | null
+  hasSavedAnalysis: boolean
   checklist: ChecklistItem[]
   documents: DealDocument[]
   notes: DealNote[]
   kpiHistory: KpiEntry[]
 }) {
   const router = useRouter()
-  const [tab, setTab] = useState<string>("overview")
+  const searchParams = useSearchParams()
+  const requestedTab = searchParams.get("tab")
+  const [tab, setTab] = useState<string>(
+    TABS.some((item) => item.id === requestedTab) ? requestedTab! : "overview",
+  )
   const [stage, setStage] = useState<DealStage>(deal.stage)
 
   async function updateStage(nextStage: DealStage) {
@@ -204,6 +213,7 @@ export function DealDetailHub({
             <DealOverviewTab
               deal={deal}
               analysis={analysis}
+              analysisMetadata={analysisMetadata}
               checklist={checklist}
               documents={documents}
               kpiHistory={kpiHistory}
@@ -211,7 +221,12 @@ export function DealDetailHub({
             />
           )}
           {tab === "analysis" && (
-            <DealCimAnalysisTab dealId={deal.id} a={analysis} />
+            <DealCimAnalysisTab
+              dealId={deal.id}
+              a={analysis}
+              hasSavedAnalysis={hasSavedAnalysis}
+              uploadedCim={searchParams.get("source") === "upload"}
+            />
           )}
           {tab === "kpi" && <DealKpiHistoryTab history={kpiHistory} />}
           {tab === "analyses" && (
@@ -233,7 +248,7 @@ export function DealDetailHub({
           )}
           {tab === "documents" && <DealDocumentsTab documents={documents} />}
           {tab === "diligence" && <DealDiligenceTab items={checklist} />}
-          {tab === "notes" && <DealNotesTab notes={notes} />}
+          {tab === "notes" && <DealNotesTab dealId={deal.id} notes={notes} />}
         </div>
       </div>
     </>

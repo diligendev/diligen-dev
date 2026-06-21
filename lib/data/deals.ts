@@ -9,6 +9,7 @@ import type {
   DealStage,
   DealStatus,
 } from "@/lib/mock-data"
+import type { DealNote } from "@/lib/types/deal-note"
 
 type DealRow = {
   id: string
@@ -33,6 +34,32 @@ type DealDocumentRow = {
 
 type AnalysisOutputRow = {
   output: DealAnalysis
+  model: string | null
+  created_by: string | null
+  created_at: string
+}
+
+type AnalysisCreatorRow = {
+  id: string
+  full_name: string | null
+  email: string | null
+}
+
+type DealNoteRow = {
+  id: string
+  author_id: string | null
+  body: string
+  created_at: string
+  updated_at: string
+}
+
+export type AnalysisMetadata = {
+  createdAt: string
+  createdBy: {
+    id: string | null
+    name: string
+  }
+  model: string | null
 }
 
 function toDeal(row: DealRow): Deal {
@@ -131,7 +158,7 @@ export async function getCurrentOrganizationCimAnalysis(dealId: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("analysis_outputs")
-    .select("output")
+    .select("output,model,created_by,created_at")
     .eq("organization_id", context.organization.id)
     .eq("deal_id", dealId)
     .eq("analysis_type", "cim")
@@ -144,5 +171,73 @@ export async function getCurrentOrganizationCimAnalysis(dealId: string) {
     throw new Error(error.message)
   }
 
-  return data?.output ?? null
+  if (!data) return null
+
+  let creator: AnalysisCreatorRow | null = null
+  if (data.created_by) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id,full_name,email")
+      .eq("id", data.created_by)
+      .maybeSingle<AnalysisCreatorRow>()
+
+    creator = profile
+  }
+
+  return {
+    analysis: data.output,
+    metadata: {
+      createdAt: data.created_at,
+      createdBy: {
+        id: creator?.id ?? data.created_by,
+        name: creator?.full_name ?? creator?.email ?? "Workspace member",
+      },
+      model: data.model,
+    } satisfies AnalysisMetadata,
+  }
+}
+
+export async function getCurrentOrganizationDealNotes(dealId: string) {
+  const context = await getCurrentUserContext()
+  if (!context || !hasWorkspace(context)) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("deal_notes")
+    .select("id,author_id,body,created_at,updated_at")
+    .eq("organization_id", context.organization.id)
+    .eq("deal_id", dealId)
+    .order("created_at", { ascending: false })
+    .returns<DealNoteRow[]>()
+
+  if (error) throw new Error(error.message)
+
+  const authorIds = Array.from(
+    new Set((data ?? []).flatMap((note) => note.author_id ?? [])),
+  )
+  const authors = new Map<string, AnalysisCreatorRow>()
+
+  if (authorIds.length > 0) {
+    const { data: profiles, error: profileError } = await supabase
+      .from("profiles")
+      .select("id,full_name,email")
+      .in("id", authorIds)
+      .returns<AnalysisCreatorRow[]>()
+
+    if (profileError) throw new Error(profileError.message)
+    for (const profile of profiles ?? []) authors.set(profile.id, profile)
+  }
+
+  return (data ?? []).map((note): DealNote => {
+    const author = note.author_id ? authors.get(note.author_id) : null
+    return {
+      id: note.id,
+      authorId: note.author_id,
+      author: author?.full_name ?? author?.email ?? "Former workspace member",
+      text: note.body,
+      timestamp: note.created_at,
+      updatedAt: note.updated_at,
+      canEdit: note.author_id === context.user.id,
+    }
+  })
 }

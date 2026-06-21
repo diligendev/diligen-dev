@@ -15,10 +15,12 @@ import type {
   KpiEntry,
 } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
+import type { AnalysisMetadata } from "@/lib/data/deals"
 
 export function DealOverviewTab({
   deal: _deal,
   analysis,
+  analysisMetadata,
   checklist,
   documents,
   kpiHistory,
@@ -26,6 +28,7 @@ export function DealOverviewTab({
 }: {
   deal: Deal
   analysis: DealAnalysis
+  analysisMetadata: AnalysisMetadata | null
   checklist: ChecklistItem[]
   documents: DealDocument[]
   kpiHistory: KpiEntry[]
@@ -42,6 +45,16 @@ export function DealOverviewTab({
       : analysis.recommendation === "Pass"
         ? "red"
         : "amber"
+  const analyzedAt = analysisMetadata
+    ? `${new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }).format(new Date(analysisMetadata.createdAt))} at ${new Intl.DateTimeFormat(
+        "en-US",
+        { hour: "numeric", minute: "2-digit" },
+      ).format(new Date(analysisMetadata.createdAt))}`
+    : null
 
   return (
     <div className="flex flex-col gap-3">
@@ -71,6 +84,11 @@ export function DealOverviewTab({
           <p className="text-[13px] leading-relaxed text-foreground/80">
             {analysis.recommendationRationale}
           </p>
+          {analysisMetadata && analyzedAt && (
+            <p className="text-[11px] text-muted-foreground">
+              AI analysis completed by {analysisMetadata.createdBy.name} · {analyzedAt}
+            </p>
+          )}
           <div className="border-t border-border pt-3">
             <p className="atlas-label mb-2">Company Snapshot</p>
             <p className="text-[13px] leading-relaxed text-foreground/80">
