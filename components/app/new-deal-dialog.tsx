@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { toast } from "sonner"
 
@@ -37,29 +38,61 @@ export function NewDealDialog({
   /** Set false when the trigger renders a non-<button> element (e.g. a dropdown menu item). */
   triggerIsButton?: boolean
 }) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [company, setCompany] = useState("")
   const [sector, setSector] = useState("")
   const [source, setSource] = useState("")
   const [notes, setNotes] = useState("")
+  const [loading, setLoading] = useState(false)
 
-  const canSubmit = company.trim().length > 0 && sector && source
+  const canSubmit = company.trim().length > 0 && sector && source && !loading
 
   const reset = () => {
     setCompany("")
     setSector("")
     setSource("")
     setNotes("")
+    setLoading(false)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!canSubmit) return
+    setLoading(true)
+
+    const response = await fetch("/api/deals", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: company,
+        sector,
+        source,
+        notes,
+        status: "Complete",
+        stage: "New",
+        hasCim: false,
+      }),
+    })
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      toast.error(payload.error ?? "Could not create deal")
+      setLoading(false)
+      return
+    }
+
     toast.success(`Deal created: ${company}`, {
       description: "Tracked with no CIM. You can log KPIs and build financials anytime.",
     })
     setOpen(false)
     reset()
+    router.refresh()
+    if (payload.id) {
+      router.push(`/deals/${payload.id}`)
+    }
   }
 
   return (
@@ -143,7 +176,7 @@ export function NewDealDialog({
               className="w-full rounded-sm bg-accent text-accent-foreground hover:bg-accent/90"
             >
               <Plus data-icon="inline-start" />
-              Create deal
+              {loading ? "Creating..." : "Create deal"}
             </Button>
           </DialogFooter>
         </form>

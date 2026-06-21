@@ -16,19 +16,37 @@ import {
 
 export function DealsBoard({ deals }: { deals: Deal[] }) {
   const router = useRouter()
-  // Local stage overrides so drag-and-drop feels real in this frontend pass.
   const [overrides, setOverrides] = useState<Record<string, DealStage>>({})
   const [dragId, setDragId] = useState<string | null>(null)
   const [overStage, setOverStage] = useState<DealStage | null>(null)
 
   const stageOf = (d: Deal): DealStage => overrides[d.id] ?? d.stage
 
-  const drop = (stage: DealStage) => {
+  const drop = async (stage: DealStage) => {
     if (!dragId) return
     const deal = deals.find((d) => d.id === dragId)
     if (deal && stageOf(deal) !== stage) {
       setOverrides((o) => ({ ...o, [dragId]: stage }))
-      toast(`Moved ${deal.company} to ${stage}`)
+      const response = await fetch(`/api/deals/${deal.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ stage }),
+      })
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        setOverrides((o) => {
+          const next = { ...o }
+          delete next[dragId]
+          return next
+        })
+        toast.error(payload.error ?? "Could not update stage")
+      } else {
+        toast.success(`Moved ${deal.company} to ${stage}`)
+        router.refresh()
+      }
     }
     setDragId(null)
     setOverStage(null)
@@ -47,7 +65,7 @@ export function DealsBoard({ deals }: { deals: Deal[] }) {
               setOverStage(stage)
             }}
             onDragLeave={() => setOverStage((s) => (s === stage ? null : s))}
-            onDrop={() => drop(stage)}
+            onDrop={() => void drop(stage)}
             className={cn(
               "flex w-64 shrink-0 flex-col rounded border border-border bg-secondary/30 transition-colors",
               isOver && "border-accent/50 bg-accent/[0.06]",
@@ -84,7 +102,11 @@ export function DealsBoard({ deals }: { deals: Deal[] }) {
                       {deal.company}
                     </span>
                     <span onClick={(e) => e.stopPropagation()}>
-                      <RowActions dealId={deal.id} company={deal.company} />
+                      <RowActions
+                        dealId={deal.id}
+                        company={deal.company}
+                        stage={stageOf(deal)}
+                      />
                     </span>
                   </div>
                   <p className="mt-1 text-[11px] text-muted-foreground">{deal.sector}</p>

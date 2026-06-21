@@ -204,7 +204,11 @@ export function DealsTable({ deals }: { deals: Deal[] }) {
 
                 {/* Actions */}
                 <TableCell className="py-3 pr-3">
-                  <RowActions dealId={deal.id} company={deal.company} />
+                  <RowActions
+                    dealId={deal.id}
+                    company={deal.company}
+                    stage={deal.stage}
+                  />
                 </TableCell>
               </TableRow>
             )
@@ -215,8 +219,36 @@ export function DealsTable({ deals }: { deals: Deal[] }) {
   )
 }
 
-export function RowActions({ dealId, company }: { dealId: string; company: string }) {
+export function RowActions({
+  dealId,
+  company,
+  stage,
+}: {
+  dealId: string
+  company: string
+  stage?: string
+}) {
   const router = useRouter()
+
+  async function updateStage(stage: string, successMessage: string) {
+    const response = await fetch(`/api/deals/${dealId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ stage }),
+    })
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      toast.error(payload.error ?? "Could not update deal")
+      return
+    }
+
+    toast.success(successMessage)
+    router.refresh()
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -248,10 +280,25 @@ export function RowActions({ dealId, company }: { dealId: string; company: strin
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => toast(`Marked as passed: ${company}`)}>
-          <XCircle />
-          Mark as passed
-        </DropdownMenuItem>
+        {stage === "Passed" ? (
+          <DropdownMenuItem
+            onClick={() =>
+              void updateStage("Reviewed", `Moved back to reviewed: ${company}`)
+            }
+          >
+            <CheckCircle2 />
+            Unpass deal
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem
+            onClick={() =>
+              void updateStage("Passed", `Marked as passed: ${company}`)
+            }
+          >
+            <XCircle />
+            Mark as passed
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem variant="destructive" onClick={() => toast(`Archived: ${company}`)}>
           <Archive />
           Archive

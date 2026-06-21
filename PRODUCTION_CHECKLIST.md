@@ -2,6 +2,90 @@
 
 This is the near-term execution checklist for turning the current frontend prototype into a production-ready enterprise application.
 
+## Current Status
+
+Last updated: June 2026.
+
+The core demo workflow is now real:
+
+1. A user can sign in through Supabase.
+2. The app resolves the user's workspace.
+3. Deals are stored in Supabase and scoped to the user's organization.
+4. Deal stage/status changes persist in Supabase.
+5. A user can paste CIM/deal text into a deal.
+6. The server sends that text to Claude through the Anthropic API.
+7. Claude returns structured JSON.
+8. The app saves the analysis JSON to Supabase.
+9. The deal score/status/stage update from that analysis.
+10. The deal Overview and CIM Analysis tabs display the saved Claude analysis.
+
+This means the investor-demo path should be:
+
+Create or open a deal -> paste CIM text -> run AI analysis -> show Overview/CIM Analysis populated from Supabase.
+
+## What Is Real Right Now
+
+- [x] Supabase auth/login.
+- [x] Protected app routes.
+- [x] Workspace/org lookup after login.
+- [x] Team invite flow.
+- [x] Invite acceptance and password setup.
+- [x] Password reset flow.
+- [x] Real team/member display in Settings.
+- [x] Role update/revoke invite/remove member backend behavior.
+- [x] Organization-scoped deals table.
+- [x] Organization-scoped deal document metadata table.
+- [x] Organization-scoped analysis outputs table.
+- [x] Real `/deals` list from Supabase.
+- [x] Real `/deals/[id]` lookup from Supabase.
+- [x] Manual deal creation persists to Supabase.
+- [x] Upload dialog creates a real deal and saves document metadata.
+- [x] Deal stage changes persist to Supabase.
+- [x] Pipeline drag/drop persists stage changes.
+- [x] Pass/unpass deal action persists stage changes.
+- [x] Manual analysis JSON save persists to Supabase.
+- [x] Claude text analysis route persists to Supabase.
+- [x] Deal header metrics use the saved analysis object.
+- [x] CIM Analysis tab uses the saved analysis object.
+- [x] Overview tab uses the saved analysis object.
+- [x] IC Memo reads from the same analysis object for core memo content.
+
+## What Is Still Demo Or Mocked
+
+- [ ] Actual PDF file upload to private storage.
+- [ ] PDF text extraction.
+- [ ] OCR for scanned/image PDFs.
+- [ ] Table extraction from PDFs/Excel.
+- [ ] Background processing jobs.
+- [ ] Source citations/page references.
+- [ ] Confidence scoring.
+- [ ] Human review/edit workflow for AI outputs.
+- [ ] KPI History data.
+- [ ] Financial workbook data.
+- [ ] Valuation workbench data.
+- [ ] Diligence checklist persistence.
+- [ ] Notes persistence.
+- [ ] Dashboard analytics.
+- [ ] Full audit log UI.
+- [ ] Billing/Stripe.
+- [ ] Production email/SMTP branding.
+- [ ] MFA/SSO/SCIM enterprise auth.
+- [ ] SOC 2 controls and evidence program.
+
+## How Much Is Left
+
+Demo/MVP readiness:
+
+- The core AI analysis loop is working.
+- The surrounding product still needs polish so unsupported tabs do not look like fake data.
+- Best next demo work: hide/label mocked tabs, add latest-analysis metadata, and make one golden demo deal feel polished end to end.
+
+Production readiness:
+
+- This is not production-ready yet.
+- The largest remaining work is file ingestion, durable job processing, structured data models for diligence/KPIs/financials, auditability, and enterprise security/compliance.
+- Realistically, a production enterprise version is a multi-month build, not a weekend cleanup.
+
 ## 1. Stabilize The Codebase
 
 - [x] Pick one package manager: `npm` or `pnpm`.
@@ -23,43 +107,43 @@ This is the near-term execution checklist for turning the current frontend proto
 
 ## 3. Set Up Supabase Foundation
 
-- [ ] Create a Supabase dev project.
-- [ ] Add Supabase environment variables to `.env.local`.
-- [ ] Install Supabase client packages.
-- [ ] Create database migrations.
+- [x] Create a Supabase dev project.
+- [x] Add Supabase environment variables to `.env.local`.
+- [x] Install Supabase client packages.
+- [x] Create initial SQL setup files.
 - [ ] Create core tables:
-  - [ ] `organizations`
-  - [ ] `profiles`
-  - [ ] `organization_members`
-  - [ ] `deals`
-  - [ ] `documents`
-  - [ ] `analyses`
+  - [x] `organizations`
+  - [x] `profiles`
+  - [x] `organization_members`
+  - [x] `deals`
+  - [x] `deal_documents`
+  - [x] `analysis_outputs`
   - [ ] `notes`
   - [ ] `kpis`
-  - [ ] `audit_events`
-- [ ] Enable Row Level Security on all customer-data tables.
-- [ ] Add basic organization/workspace isolation policies.
+  - [x] `audit_events`
+- [x] Enable Row Level Security on current customer-data tables.
+- [x] Add basic organization/workspace isolation policies.
 
 ## 4. Add Auth
 
 - [x] Start with Supabase email/password or magic-link auth.
-- [ ] Make signup invite-only.
+- [x] Make signup invite-only for the current workspace flow.
 - [x] Protect app routes under `/dashboard`, `/deals`, `/analysis`, `/kpi-tracker`, `/trend-analyzer`, and `/settings`.
 - [x] Redirect logged-out users to `/login`.
-- [ ] Create a user profile after signup/login.
-- [ ] Attach each user to an organization/workspace.
+- [x] Create a user profile after invite acceptance.
+- [x] Attach each user to an organization/workspace.
 - [x] Replace fake user data in the sidebar with the real logged-in user.
 - [x] Add sign-out behavior connected to Supabase.
 - [ ] Defer SSO/SAML until later enterprise work.
 
 ## 5. Replace Mock Deal Data
 
-- [ ] Replace `lib/mock-data.ts` deal list usage with Supabase-backed queries.
+- [ ] Replace all `lib/mock-data.ts` usage with Supabase-backed queries.
 - [ ] Load real deals on `/dashboard`.
-- [ ] Load real deals on `/deals`.
-- [ ] Load a real deal by ID on `/deals/[id]`.
-- [ ] Persist manual deal creation.
-- [ ] Persist deal stage changes.
+- [x] Load real deals on `/deals`.
+- [x] Load a real deal by ID on `/deals/[id]`.
+- [x] Persist manual deal creation.
+- [x] Persist deal stage changes.
 - [ ] Persist notes.
 - [ ] Persist checklist/diligence items.
 - [ ] Keep a clearly separated demo workspace for investor demos.
@@ -90,6 +174,11 @@ This is the near-term execution checklist for turning the current frontend proto
 
 ## 8. Add AI And Document Intelligence
 
+- [x] Add first text-to-Claude analysis route for pasted CIM/deal text.
+- [x] Require structured JSON output from Claude.
+- [x] Save Claude analysis output to Supabase.
+- [x] Display saved Claude output in CIM Analysis.
+- [x] Display saved Claude output in Overview.
 - [ ] Extract text from PDFs.
 - [ ] Extract tables from PDFs and Excel files.
 - [ ] Add OCR for scanned PDFs.

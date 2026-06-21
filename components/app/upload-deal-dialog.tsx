@@ -4,6 +4,7 @@ import type React from "react"
 import { useCallback, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Upload, FileText, X, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -70,36 +71,51 @@ export function UploadDealDialog({
 
   const canSubmit = !!file && company.trim().length > 0 && !submitting
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!canSubmit) return
     setSubmitting(true)
     setStage(0)
     setProgress(8)
 
-    // Simulated analysis pipeline. A Supabase + job queue layer replaces this later.
-    let current = 0
-    const tick = setInterval(() => {
-      setProgress((p) => {
-        const next = Math.min(p + Math.random() * 14 + 6, 100)
-        if (next > 33 && current === 0) {
-          current = 1
-          setStage(1)
-        } else if (next > 66 && current === 1) {
-          current = 2
-          setStage(2)
-        }
-        if (next >= 100) {
-          clearInterval(tick)
-          setTimeout(() => {
-            setOpen(false)
-            reset()
-            router.push("/deals/meridian-logistics")
-          }, 500)
-        }
-        return next
-      })
-    }, 450)
+    const response = await fetch("/api/deals", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: company,
+        sector: "Uncategorized",
+        source: "Upload",
+        stage: "Analyzing",
+        status: "Processing",
+        hasCim: true,
+        document: {
+          name: file.name,
+          documentType: "CIM",
+          fileSize: formatSize(file.size),
+        },
+      }),
+    })
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      toast.error(payload.error ?? "Could not upload deal")
+      setSubmitting(false)
+      setProgress(0)
+      return
+    }
+
+    setProgress(100)
+    toast.success(`Deal created: ${company}`, {
+      description: "CIM metadata saved. Extraction pipeline comes next.",
+    })
+    setOpen(false)
+    reset()
+    router.refresh()
+    if (payload.id) {
+      router.push(`/deals/${payload.id}`)
+    }
   }
 
   return (

@@ -33,18 +33,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { DealsTable } from "@/components/app/deals-table"
 import { DealsBoard } from "@/components/app/deals-board"
 import { UploadDealDialog } from "@/components/app/upload-deal-dialog"
 import { NewDealDialog } from "@/components/app/new-deal-dialog"
 import {
-  deals as allDeals,
   DEAL_STAGES,
   sectors as allSectors,
   attentionDealIds,
@@ -56,7 +49,7 @@ import { cn } from "@/lib/utils"
 type View = "table" | "board"
 type StageFilter = "All" | DealStage
 
-export function DealsView() {
+export function DealsView({ deals }: { deals: Deal[] }) {
   const params = useSearchParams()
   const initialStage = (params.get("stage") as StageFilter) ?? "All"
   const attentionMode = params.get("status") === "attention"
@@ -69,7 +62,7 @@ export function DealsView() {
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   const filtered = useMemo(() => {
-    return allDeals.filter((d) => {
+    return deals.filter((d) => {
       if (query) {
         const q = query.toLowerCase()
         if (!d.company.toLowerCase().includes(q) && !d.sector.toLowerCase().includes(q)) {
@@ -85,12 +78,12 @@ export function DealsView() {
       }
       return true
     })
-  }, [query, stageTab, sector, scoreRange, attentionMode])
+  }, [deals, query, stageTab, sector, scoreRange, attentionMode])
 
   const countForStage = (stage: StageFilter) =>
     stage === "All"
-      ? allDeals.length
-      : allDeals.filter((d) => d.stage === stage).length
+      ? deals.length
+      : deals.filter((d) => d.stage === stage).length
 
   const filtersActive = sector !== "all" || scoreRange[0] !== 0 || scoreRange[1] !== 10
 
@@ -141,39 +134,29 @@ export function DealsView() {
             className="h-7 w-52 rounded pl-8 text-xs"
           />
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                size="sm"
-                className="h-7 rounded bg-accent px-3 text-xs font-medium text-accent-foreground hover:bg-accent/90"
-              >
-                <Plus data-icon="inline-start" />
-                Add deal
-              </Button>
-            }
-          />
-          <DropdownMenuContent align="end">
-            <UploadDealDialog
-              triggerIsButton={false}
-              trigger={
-                <DropdownMenuItem closeOnClick={false}>
-                  <Upload />
-                  Upload CIM
-                </DropdownMenuItem>
-              }
-            />
-            <NewDealDialog
-              triggerIsButton={false}
-              trigger={
-                <DropdownMenuItem closeOnClick={false}>
-                  <Plus />
-                  Add deal manually
-                </DropdownMenuItem>
-              }
-            />
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <UploadDealDialog
+          trigger={
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 rounded border-border px-3 text-xs"
+            >
+              <Upload data-icon="inline-start" />
+              Upload CIM
+            </Button>
+          }
+        />
+        <NewDealDialog
+          trigger={
+            <Button
+              size="sm"
+              className="h-7 rounded bg-accent px-3 text-xs font-medium text-accent-foreground hover:bg-accent/90"
+            >
+              <Plus data-icon="inline-start" />
+              Add deal
+            </Button>
+          }
+        />
       </PageHeader>
 
       <div className="flex flex-1 flex-col gap-3 p-5">
@@ -291,7 +274,9 @@ export function DealsView() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All sectors</SelectItem>
-                        {allSectors.map((s) => (
+                        {Array.from(
+                          new Set([...allSectors, ...deals.map((d) => d.sector)]),
+                        ).sort().map((s) => (
                           <SelectItem key={s} value={s}>{s}</SelectItem>
                         ))}
                       </SelectContent>

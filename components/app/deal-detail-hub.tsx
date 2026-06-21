@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { ChevronLeft, Download } from "lucide-react"
 import { toast } from "sonner"
 
@@ -65,8 +66,33 @@ export function DealDetailHub({
   notes: DealNote[]
   kpiHistory: KpiEntry[]
 }) {
+  const router = useRouter()
   const [tab, setTab] = useState<string>("overview")
   const [stage, setStage] = useState<DealStage>(deal.stage)
+
+  async function updateStage(nextStage: DealStage) {
+    if (nextStage === stage) return
+    const previousStage = stage
+    setStage(nextStage)
+
+    const response = await fetch(`/api/deals/${deal.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ stage: nextStage }),
+    })
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      setStage(previousStage)
+      toast.error(payload.error ?? "Could not update stage")
+      return
+    }
+
+    toast.success(`Moved ${deal.company} to ${nextStage}`)
+    router.refresh()
+  }
 
   return (
     <>
@@ -118,9 +144,8 @@ export function DealDetailHub({
               <Select
                 value={stage}
                 onValueChange={(v) => {
-                  if (!v || v === stage) return
-                  setStage(v as DealStage)
-                  toast.success(`Moved ${deal.company} to ${v}`)
+                  if (!v) return
+                  void updateStage(v as DealStage)
                 }}
               >
                 <SelectTrigger className="h-8 w-[140px] rounded border-border text-[12px]">
@@ -185,7 +210,9 @@ export function DealDetailHub({
               onNavigate={setTab}
             />
           )}
-          {tab === "analysis" && <DealCimAnalysisTab a={analysis} />}
+          {tab === "analysis" && (
+            <DealCimAnalysisTab dealId={deal.id} a={analysis} />
+          )}
           {tab === "kpi" && <DealKpiHistoryTab history={kpiHistory} />}
           {tab === "analyses" && (
             <DealAnalysesTab deal={deal} documents={documents} />

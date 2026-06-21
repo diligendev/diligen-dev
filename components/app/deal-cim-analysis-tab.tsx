@@ -1,8 +1,15 @@
 "use client"
 
+import type React from "react"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Check } from "lucide-react"
+import { toast } from "sonner"
+
+import { Button } from "@/components/ui/button"
 import { Section } from "@/components/app/section"
 import { RedFlagItem } from "@/components/app/red-flag-item"
+import { Textarea } from "@/components/ui/textarea"
 import type { DealAnalysis } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 
@@ -21,9 +28,43 @@ const qualityConfig: Record<string, { bg: string; fg: string; ring: string }> = 
   Low: { bg: "bg-red-50", fg: "text-red-700", ring: "ring-red-200" },
 }
 
-export function DealCimAnalysisTab({ a }: { a: DealAnalysis }) {
+export function DealCimAnalysisTab({
+  dealId,
+  a,
+}: {
+  dealId: string
+  a: DealAnalysis
+}) {
+  const router = useRouter()
+  const [documentText, setDocumentText] = useState("")
+  const [running, setRunning] = useState(false)
   const rec = recConfig[a.recommendation] ?? recConfig["Needs More Information"]
   const quality = qualityConfig[a.ebitdaQuality] ?? qualityConfig["Moderate"]
+
+  async function runAiAnalysis(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setRunning(true)
+
+    const response = await fetch(`/api/deals/${dealId}/analysis/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ documentText }),
+    })
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      toast.error(payload.error ?? "AI analysis failed")
+      setRunning(false)
+      return
+    }
+
+    toast.success("AI analysis saved")
+    setDocumentText("")
+    setRunning(false)
+    router.refresh()
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -173,6 +214,33 @@ export function DealCimAnalysisTab({ a }: { a: DealAnalysis }) {
           ))}
         </ol>
       </Section>
+
+      <Section
+        title="Run AI Analysis"
+        description="Paste CIM or deal text. The AI will extract structured diligence output and save it to this deal."
+      >
+        <form onSubmit={runAiAnalysis} className="flex flex-col gap-3">
+          <Textarea
+            value={documentText}
+            onChange={(e) => setDocumentText(e.target.value)}
+            placeholder="Paste CIM text, deal notes, or dummy analysis text here..."
+            className="min-h-56 resize-y rounded-sm text-[13px] leading-relaxed focus-visible:ring-accent"
+          />
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] text-muted-foreground">
+              Requires `ANTHROPIC_API_KEY` in `.env.local`.
+            </p>
+            <Button
+              type="submit"
+              disabled={documentText.trim().length < 500 || running}
+              className="rounded-sm bg-accent text-accent-foreground hover:bg-accent/90"
+            >
+              {running ? "Analyzing..." : "Run AI analysis"}
+            </Button>
+          </div>
+        </form>
+      </Section>
+
     </div>
   )
 }
