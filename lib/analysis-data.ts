@@ -29,6 +29,10 @@ export type AnalysisRecord = {
   // back to sensible defaults when absent.
   defaultPeriod?: Period
   defaultMeasure?: string
+  // Source + capability metadata captured during ingestion. Optional so existing
+  // sample records stay valid; the workspace falls back to defaults when absent.
+  sourceFileName?: string
+  grain?: "Monthly" | "Quarterly" | "Annual" | "None"
 }
 
 export type Period = "Annual" | "Quarterly"

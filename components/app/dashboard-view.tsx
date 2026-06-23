@@ -120,7 +120,9 @@ function getNeedsAttention(deals: Deal[]): AttentionItem[] {
           : deal.status === "Processing"
             ? "Analysis is still processing or waiting for review."
             : deal.stage === "New"
-              ? "New deal needs first-pass CIM analysis."
+              ? deal.hasCim
+                ? "New deal needs first-pass CIM analysis."
+                : "Added manually — add financials, valuation, or call notes."
               : `Score ${deal.score?.toFixed(1)}. Review before advancing.`,
     }))
 }
@@ -219,6 +221,7 @@ export function DashboardView({ deals }: { deals: Deal[] }) {
             label="Sectors tracked"
             value={sectorCount}
             accentClass="bg-secondary text-muted-foreground"
+            onClick={() => router.push("/deals")}
           />
         </div>
 

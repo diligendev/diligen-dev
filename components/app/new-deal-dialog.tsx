@@ -85,7 +85,7 @@ export function NewDealDialog({
     }
 
     toast.success(`Deal created: ${company}`, {
-      description: "Tracked with no CIM. You can log KPIs and build financials anytime.",
+      description: "Tracked with no CIM. Add financials, valuation, and call notes anytime.",
     })
     setOpen(false)
     reset()
@@ -111,7 +111,7 @@ export function NewDealDialog({
         <DialogHeader>
           <DialogTitle>Add deal manually</DialogTitle>
           <DialogDescription>
-            Track a deal without a CIM. Financials, KPIs, and trend analysis all
+            Track a deal without a CIM. Financials, valuation, and call notes all
             work from manual input.
           </DialogDescription>
         </DialogHeader>

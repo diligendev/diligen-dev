@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import {
   FileText,
   FileSpreadsheet,
@@ -10,8 +10,15 @@ import {
   CheckCircle2,
   Clock,
 } from "lucide-react"
+import { toast } from "sonner"
 import type { DealDocument } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 const typeIcon: Record<DealDocument["type"], typeof FileText> = {
   CIM: FileText,
@@ -30,7 +37,25 @@ const typeChip: Record<DealDocument["type"], string> = {
 }
 
 export function DealDocumentsTab({ documents }: { documents: DealDocument[] }) {
-  const [docs] = useState(documents)
+  const [docs, setDocs] = useState(documents)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const onPick = (files: FileList | null) => {
+    const f = files?.[0]
+    if (!f) return
+    setDocs((prev) => [
+      {
+        id: `doc-${Date.now()}`,
+        name: f.name,
+        type: "Other",
+        uploadDate: "Just now",
+        size: formatSize(f.size),
+        extracted: false,
+      },
+      ...prev,
+    ])
+    toast.info(`Uploading ${f.name}…`)
+  }
 
   return (
     <div className="overflow-hidden rounded border border-border bg-card shadow-[0_1px_3px_0_rgb(0,0,0,0.04)]">
@@ -38,11 +63,18 @@ export function DealDocumentsTab({ documents }: { documents: DealDocument[] }) {
         <p className="atlas-label">Data Room ({docs.length})</p>
         <button
           type="button"
+          onClick={() => inputRef.current?.click()}
           className="inline-flex h-7 items-center gap-1.5 rounded bg-accent px-3 text-[12px] font-medium text-accent-foreground transition-colors hover:bg-accent/90"
         >
           <Upload className="size-3.5" />
           Upload
         </button>
+        <input
+          ref={inputRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => onPick(e.target.files)}
+        />
       </div>
 
       {docs.length === 0 ? (

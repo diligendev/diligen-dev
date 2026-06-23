@@ -1,37 +1,34 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { type Dispatch, type SetStateAction, useMemo, useState } from "react"
 import { Download, Calculator, TrendingUp } from "lucide-react"
 
 import {
   type ValuationInputs,
   computeValuation,
-  defaultValuationInputs,
   sensitivity,
   fmtM,
   fmtX,
   fmtPct,
 } from "@/lib/valuation"
-import type { DealAnalysis } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 
 export function ValuationWorkbench({
   companyName,
-  analysis,
+  inputs,
+  onInputsChange,
 }: {
   companyName: string
-  analysis: DealAnalysis
+  inputs: ValuationInputs
+  onInputsChange: Dispatch<SetStateAction<ValuationInputs>>
 }) {
-  const [inputs, setInputs] = useState<ValuationInputs>(() =>
-    defaultValuationInputs(analysis),
-  )
   const [sensMetric, setSensMetric] = useState<"irr" | "moic">("irr")
 
   const result = useMemo(() => computeValuation(inputs), [inputs])
   const sens = useMemo(() => sensitivity(inputs, sensMetric), [inputs, sensMetric])
 
   const set = <K extends keyof ValuationInputs>(key: K, value: number) =>
-    setInputs((prev) => ({ ...prev, [key]: value }))
+    onInputsChange((prev) => ({ ...prev, [key]: value }))
 
   const exportCsv = () => {
     const rows: (string | number)[][] = [
@@ -159,7 +156,11 @@ export function ValuationWorkbench({
           {/* Exit bridge */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatPill label="Exit EV" value={`${fmtM(result.exitEv)} · ${fmtX(inputs.exitMultiple)}`} />
-            <StatPill label="Net debt at exit" value={fmtM(result.netDebtAtExit)} />
+            {result.netDebtAtExit < 0 ? (
+              <StatPill label="Net cash at exit" value={fmtM(-result.netDebtAtExit)} />
+            ) : (
+              <StatPill label="Net debt at exit" value={fmtM(result.netDebtAtExit)} />
+            )}
             <StatPill label="Cash at exit" value={fmtM(result.cashAtExit)} />
             <StatPill label="Exit equity" value={fmtM(result.exitEquity)} accent />
           </div>

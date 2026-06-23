@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Download } from "lucide-react"
+import { ChevronLeft, FileText } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/app/page-header"
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select"
 import { DealOverviewTab } from "@/components/app/deal-overview-tab"
 import { DealCimAnalysisTab } from "@/components/app/deal-cim-analysis-tab"
-import { DealKpiHistoryTab } from "@/components/app/deal-kpi-history-tab"
+import { DealCallNotesTab } from "@/components/app/deal-call-notes-tab"
 import { DealDocumentsTab } from "@/components/app/deal-documents-tab"
 import { DealDiligenceTab } from "@/components/app/deal-diligence-tab"
 import { DealNotesTab } from "@/components/app/deal-notes-tab"
@@ -38,12 +38,13 @@ import {
 import type { DealNote } from "@/lib/types/deal-note"
 import { cn } from "@/lib/utils"
 import type { AnalysisMetadata } from "@/lib/data/deals"
+import { type ValuationInputs, defaultValuationInputs } from "@/lib/valuation"
 
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "analysis", label: "CIM Analysis" },
-  { id: "kpi", label: "KPI History" },
-  { id: "analyses", label: "Analyses" },
+  { id: "calls", label: "Call Notes" },
+  { id: "analyses", label: "Revenue Explorer" },
   { id: "financials", label: "Financials" },
   { id: "valuation", label: "Valuation" },
   { id: "memo", label: "IC Memo" },
@@ -74,10 +75,29 @@ export function DealDetailHub({
   const router = useRouter()
   const searchParams = useSearchParams()
   const requestedTab = searchParams.get("tab")
-  const [tab, setTab] = useState<string>(
-    TABS.some((item) => item.id === requestedTab) ? requestedTab! : "overview",
-  )
+  const initialTab = TABS.some((item) => item.id === requestedTab)
+    ? requestedTab!
+    : "overview"
+  const [tab, setTab] = useState<string>(initialTab)
+  // Keep-alive: a tab is mounted on first visit and stays mounted thereafter,
+  // so in-progress work (captured calls, diligence edits, financial what-ifs,
+  // half-built revenue views) survives switching tabs instead of being reset.
+  const [visited, setVisited] = useState<Set<string>>(() => new Set([initialTab]))
+  const selectTab = (next: string) => {
+    setTab(next)
+    setVisited((prev) => (prev.has(next) ? prev : new Set(prev).add(next)))
+  }
   const [stage, setStage] = useState<DealStage>(deal.stage)
+  const [diligenceAdditions, setDiligenceAdditions] = useState<ChecklistItem[]>([])
+  const [valuationInputs, setValuationInputs] = useState<ValuationInputs>(() =>
+    defaultValuationInputs(analysis),
+  )
+  const addDiligenceItems = (additions: ChecklistItem[]) =>
+    setDiligenceAdditions((prev) => {
+      const existing = new Set(prev.map((item) => item.question))
+      const fresh = additions.filter((item) => !existing.has(item.question))
+      return [...fresh, ...prev]
+    })
 
   async function updateStage(nextStage: DealStage) {
     if (nextStage === stage) return
@@ -120,12 +140,12 @@ export function DealDetailHub({
           size="sm"
           className="h-7 rounded bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
           onClick={() => {
-            setTab("memo")
+            selectTab("memo")
             toast.info("Opening the IC memo — review the thesis, then click Print / Save PDF.")
           }}
         >
-          <Download data-icon="inline-start" />
-          Export PDF
+          <FileText data-icon="inline-start" />
+          Open IC Memo
         </Button>
       </PageHeader>
 
@@ -173,12 +193,12 @@ export function DealDetailHub({
           </div>
 
           <div className="grid grid-cols-2 border-t border-border md:grid-cols-4">
-            <MetricCell label="Adj. EBITDA" value={analysis.metrics.adjustedEbitda} />
-            <MetricCell label="EBITDA Margin" value={analysis.metrics.ebitdaMargin} border />
-            <MetricCell label="LTM Revenue" value={analysis.metrics.revenue} border />
+            <MetricCell label="Adj. EBITDA" value={hasSavedAnalysis ? analysis.metrics.adjustedEbitda : "—"} />
+            <MetricCell label="EBITDA Margin" value={hasSavedAnalysis ? analysis.metrics.ebitdaMargin : "—"} border />
+            <MetricCell label="LTM Revenue" value={hasSavedAnalysis ? analysis.metrics.revenue : "—"} border />
             <MetricCell
               label="Red Flags"
-              value={String(analysis.metrics.redFlags)}
+              value={hasSavedAnalysis ? String(analysis.metrics.redFlags) : "—"}
               valueClass="text-amber-700"
               border
             />
@@ -191,7 +211,7 @@ export function DealDetailHub({
             <button
               key={t.id}
               type="button"
-              onClick={() => setTab(t.id)}
+              onClick={() => selectTab(t.id)}
               className={cn(
                 "relative whitespace-nowrap px-3 py-2 text-[13px] font-medium transition-colors",
                 tab === t.id
@@ -207,48 +227,88 @@ export function DealDetailHub({
           ))}
         </div>
 
-        {/* Tab content */}
+        {/* Tab content — each panel is mounted on first visit and kept mounted
+            so its in-progress state is preserved across tab switches. */}
         <div className="flex-1">
-          {tab === "overview" && (
-            <DealOverviewTab
-              deal={deal}
-              analysis={analysis}
-              analysisMetadata={analysisMetadata}
-              checklist={checklist}
-              documents={documents}
-              kpiHistory={kpiHistory}
-              onNavigate={setTab}
-            />
+          {visited.has("overview") && (
+            <div hidden={tab !== "overview"}>
+              <DealOverviewTab
+                deal={deal}
+                analysis={analysis}
+                analysisMetadata={analysisMetadata}
+                hasSavedAnalysis={hasSavedAnalysis}
+                checklist={checklist}
+                documents={documents}
+                kpiHistory={kpiHistory}
+                onNavigate={selectTab}
+              />
+            </div>
           )}
-          {tab === "analysis" && (
-            <DealCimAnalysisTab
-              dealId={deal.id}
-              a={analysis}
-              hasSavedAnalysis={hasSavedAnalysis}
-              uploadedCim={searchParams.get("source") === "upload"}
-            />
+          {visited.has("analysis") && (
+            <div hidden={tab !== "analysis"}>
+              <DealCimAnalysisTab
+                dealId={deal.id}
+                a={analysis}
+                hasSavedAnalysis={hasSavedAnalysis}
+                uploadedCim={searchParams.get("source") === "upload"}
+              />
+            </div>
           )}
-          {tab === "kpi" && <DealKpiHistoryTab history={kpiHistory} />}
-          {tab === "analyses" && (
-            <DealAnalysesTab deal={deal} documents={documents} />
+          {visited.has("calls") && (
+            <div hidden={tab !== "calls"}>
+              <DealCallNotesTab
+                dealId={deal.id}
+                companyName={deal.company}
+                analysis={analysis}
+                onAddToDiligence={addDiligenceItems}
+              />
+            </div>
           )}
-          {tab === "financials" && (
-            <FinancialWorkbook companyName={deal.company} />
+          {visited.has("analyses") && (
+            <div hidden={tab !== "analyses"}>
+              <DealAnalysesTab deal={deal} documents={documents} />
+            </div>
           )}
-          {tab === "valuation" && (
-            <ValuationWorkbench companyName={deal.company} analysis={analysis} />
+          {visited.has("financials") && (
+            <div hidden={tab !== "financials"}>
+              <FinancialWorkbook companyName={deal.company} />
+            </div>
           )}
-          {tab === "memo" && (
-            <DealMemoTab
-              deal={deal}
-              analysis={analysis}
-              kpiHistory={kpiHistory}
-              checklist={checklist}
-            />
+          {visited.has("valuation") && (
+            <div hidden={tab !== "valuation"}>
+              <ValuationWorkbench
+                companyName={deal.company}
+                inputs={valuationInputs}
+                onInputsChange={setValuationInputs}
+              />
+            </div>
           )}
-          {tab === "documents" && <DealDocumentsTab documents={documents} />}
-          {tab === "diligence" && <DealDiligenceTab items={checklist} />}
-          {tab === "notes" && <DealNotesTab dealId={deal.id} notes={notes} />}
+          {visited.has("memo") && (
+            <div hidden={tab !== "memo"}>
+              <DealMemoTab
+                deal={deal}
+                analysis={analysis}
+                valuationInputs={valuationInputs}
+                kpiHistory={kpiHistory}
+                checklist={checklist}
+              />
+            </div>
+          )}
+          {visited.has("documents") && (
+            <div hidden={tab !== "documents"}>
+              <DealDocumentsTab documents={documents} />
+            </div>
+          )}
+          {visited.has("diligence") && (
+            <div hidden={tab !== "diligence"}>
+              <DealDiligenceTab items={checklist} addedItems={diligenceAdditions} />
+            </div>
+          )}
+          {visited.has("notes") && (
+            <div hidden={tab !== "notes"}>
+              <DealNotesTab dealId={deal.id} notes={notes} />
+            </div>
+          )}
         </div>
       </div>
     </>

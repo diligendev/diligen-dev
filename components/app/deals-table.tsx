@@ -11,10 +11,8 @@ import {
   Loader2,
   AlertCircle,
   Eye,
-  GaugeCircle,
   TrendingUp,
   XCircle,
-  Archive,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -270,11 +268,9 @@ export function RowActions({
             <Eye />
             View analysis
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push(`/deals/${dealId}?tab=kpis`)}>
-            <GaugeCircle />
-            Open KPI tracker
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push(`/deals/${dealId}?tab=trend`)}>
+          <DropdownMenuItem
+            onClick={() => router.push(`/trend-analyzer?deal=${dealId}`)}
+          >
             <TrendingUp />
             Open trend analyzer
           </DropdownMenuItem>
@@ -299,10 +295,6 @@ export function RowActions({
             Mark as passed
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem variant="destructive" onClick={() => toast(`Archived: ${company}`)}>
-          <Archive />
-          Archive
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

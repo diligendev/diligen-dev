@@ -7,7 +7,7 @@ import {
   LayoutDashboard,
   FolderKanban,
   FlaskConical,
-  GaugeCircle,
+  PhoneCall,
   TrendingUp,
   Settings,
   ChevronsUpDown,
@@ -43,8 +43,8 @@ import { cn } from "@/lib/utils"
 const nav = [
   { title: "Dashboard",       href: "/dashboard",       icon: LayoutDashboard },
   { title: "Deals",           href: "/deals",           icon: FolderKanban },
-  { title: "Analysis",        href: "/analysis",        icon: FlaskConical },
-  { title: "KPI Tracker",     href: "/kpi-tracker",     icon: GaugeCircle },
+  { title: "Revenue Explorer", href: "/analysis",       icon: FlaskConical },
+  { title: "Call Notes",      href: "/call-notes",      icon: PhoneCall },
   { title: "Trend Analyzer",  href: "/trend-analyzer",  icon: TrendingUp },
 ]
 

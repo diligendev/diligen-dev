@@ -18,6 +18,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { sectors } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 
 const STAGES = [
@@ -45,6 +53,7 @@ export function UploadDealDialog({
   const [open, setOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [company, setCompany] = useState("")
+  const [sector, setSector] = useState("")
   const [dragging, setDragging] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [stage, setStage] = useState(0)
@@ -53,6 +62,7 @@ export function UploadDealDialog({
   const reset = useCallback(() => {
     setFile(null)
     setCompany("")
+    setSector("")
     setSubmitting(false)
     setStage(0)
     setProgress(0)
@@ -60,7 +70,12 @@ export function UploadDealDialog({
 
   const handleFiles = (files: FileList | null) => {
     const f = files?.[0]
-    if (f && f.type === "application/pdf") setFile(f)
+    if (!f) return
+    if (f.type !== "application/pdf") {
+      toast.error("Please upload a PDF file.")
+      return
+    }
+    setFile(f)
   }
 
   const onDrop = (e: React.DragEvent) => {
@@ -69,7 +84,8 @@ export function UploadDealDialog({
     handleFiles(e.dataTransfer.files)
   }
 
-  const canSubmit = !!file && company.trim().length > 0 && !submitting
+  const canSubmit =
+    !!file && company.trim().length > 0 && !!sector && !submitting
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,7 +101,7 @@ export function UploadDealDialog({
       },
       body: JSON.stringify({
         name: company,
-        sector: "Uncategorized",
+        sector,
         source: "Upload",
         stage: "Analyzing",
         status: "Processing",
@@ -228,6 +244,22 @@ export function UploadDealDialog({
                 required
                 className="rounded-sm focus-visible:ring-accent"
               />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Sector
+              </Label>
+              <Select value={sector} onValueChange={(v) => v && setSector(v as string)}>
+                <SelectTrigger className="rounded-sm">
+                  <SelectValue placeholder="Select sector" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sectors.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <Button

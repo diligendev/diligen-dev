@@ -4,8 +4,8 @@ import { useMemo, useState } from "react"
 import { Printer, RotateCcw } from "lucide-react"
 
 import {
+  type ValuationInputs,
   computeValuation,
-  defaultValuationInputs,
   fmtM,
   fmtX,
   fmtPct,
@@ -28,17 +28,19 @@ const recTone: Record<string, string> = {
 export function DealMemoTab({
   deal,
   analysis,
+  valuationInputs,
   kpiHistory,
   checklist,
 }: {
   deal: Deal
   analysis: DealAnalysis
+  valuationInputs: ValuationInputs
   kpiHistory: KpiEntry[]
   checklist: ChecklistItem[]
 }) {
   const valuation = useMemo(
-    () => computeValuation(defaultValuationInputs(analysis)),
-    [analysis],
+    () => computeValuation(valuationInputs),
+    [valuationInputs],
   )
 
   const [thesis, setThesis] = useState(analysis.recommendationRationale)
@@ -47,7 +49,7 @@ export function DealMemoTab({
   const variances = latestKpi?.kpis.filter((k) => k.cimValue) ?? []
   const openDiligence = checklist.filter((c) => c.status !== "Answered")
 
-  const today = new Date("2026-06-13").toLocaleDateString("en-US", {
+  const today = new Date().toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -147,15 +149,15 @@ export function DealMemoTab({
         {/* Valuation summary */}
         <Block title="Indicative Valuation & Returns (Base Case)">
           <div className="grid grid-cols-2 gap-px overflow-hidden rounded border border-border bg-border sm:grid-cols-4">
-            <MemoMetric label="Enterprise Value" value={`${fmtM(valuation.entryEv)} · ${fmtX(defaultValuationInputs(analysis).entryMultiple)}`} />
+            <MemoMetric label="Enterprise Value" value={`${fmtM(valuation.entryEv)} · ${fmtX(valuationInputs.entryMultiple)}`} />
             <MemoMetric label="Equity Check" value={fmtM(valuation.entryEquity)} />
             <MemoMetric label="MOIC" value={Number.isFinite(valuation.moic) ? `${valuation.moic.toFixed(2)}x` : "—"} />
             <MemoMetric label="Gross IRR" value={fmtPct(valuation.irr)} />
           </div>
           <p className="mt-2 text-[11px] italic leading-relaxed text-muted-foreground">
-            Illustrative single-hold LBO at {fmtX(defaultValuationInputs(analysis).entryMultiple)} entry,{" "}
-            {fmtPct(defaultValuationInputs(analysis).debtPct)} leverage, {defaultValuationInputs(analysis).holdYears}-year hold.
-            See Valuation tab for full assumptions and sensitivities.
+            Illustrative single-hold LBO at {fmtX(valuationInputs.entryMultiple)} entry,{" "}
+            {fmtPct(valuationInputs.debtPct)} leverage, {valuationInputs.holdYears}-year hold.
+            Mirrors the current assumptions on the Valuation tab.
           </p>
         </Block>
 

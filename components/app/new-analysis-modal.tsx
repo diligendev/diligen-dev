@@ -33,14 +33,21 @@ export function NewAnalysisModal({
   onCreate,
   defaultPeriod,
   defaultMeasure,
+  allowedPeriods,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   onCreate: (view: Omit<AnalysisView, "id" | "isRaw">) => void
   defaultPeriod?: Period
   defaultMeasure?: string
+  allowedPeriods?: Period[]
 }) {
-  const [period, setPeriod] = useState<Period>(defaultPeriod ?? "Annual")
+  const periodOptions = allowedPeriods?.length ? allowedPeriods : PERIODS
+  const [period, setPeriod] = useState<Period>(
+    defaultPeriod && periodOptions.includes(defaultPeriod)
+      ? defaultPeriod
+      : periodOptions[0],
+  )
   const [dependent, setDependent] = useState<string>(
     defaultMeasure ?? NUMERIC_COLUMNS[0],
   )
@@ -102,13 +109,13 @@ export function NewAnalysisModal({
             <DropdownSelect
               value={period}
               display={period}
-              options={PERIODS.map((p) => ({ value: p, label: p }))}
+              options={periodOptions.map((p) => ({ value: p, label: p }))}
               onSelect={(v) => setPeriod(v as Period)}
             />
           </Field>
 
-          {/* Dependent Variable */}
-          <Field label="Dependent Variable">
+          {/* Measure (the value being summed) */}
+          <Field label="Measure">
             <DropdownSelect
               value={dependent}
               display={columnLabels[dependent] ?? dependent}
@@ -120,8 +127,8 @@ export function NewAnalysisModal({
             />
           </Field>
 
-          {/* Independent Variables multi-select */}
-          <Field label={`(${independents.length}) Independent Variables`}>
+          {/* Break down by (dimensions to group the measure by) */}
+          <Field label={`Break down by (${independents.length})`}>
             <Popover>
               <PopoverTrigger
                 render={

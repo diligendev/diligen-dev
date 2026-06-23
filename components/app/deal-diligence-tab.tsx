@@ -13,9 +13,29 @@ const statusChip: Record<ChecklistStatus, string> = {
   Flagged: "bg-amber-50 text-amber-700 ring-amber-200",
 }
 
-export function DealDiligenceTab({ items }: { items: ChecklistItem[] }) {
-  const [list, setList] = useState(items)
+export function DealDiligenceTab({
+  items,
+  addedItems = [],
+}: {
+  items: ChecklistItem[]
+  addedItems?: ChecklistItem[]
+}) {
+  const [list, setList] = useState<ChecklistItem[]>(() => [...addedItems, ...items])
   const [draft, setDraft] = useState("")
+
+  // The tab stays mounted across tab switches, so newly handed-off items from
+  // Call Notes arrive via props after mount. Merge in any we don't already have
+  // (by question text) when the prop reference changes — adjusting state during
+  // render, without disturbing existing status/note edits.
+  const [seenAdded, setSeenAdded] = useState(addedItems)
+  if (addedItems !== seenAdded) {
+    setSeenAdded(addedItems)
+    setList((prev) => {
+      const have = new Set(prev.map((it) => it.question))
+      const fresh = addedItems.filter((it) => !have.has(it.question))
+      return fresh.length ? [...fresh, ...prev] : prev
+    })
+  }
 
   const cycleStatus = (id: string) =>
     setList((prev) =>

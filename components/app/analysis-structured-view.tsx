@@ -35,6 +35,14 @@ const SECTIONS = [
 
 type SectionName = (typeof SECTIONS)[number]
 
+// Views that compare period-over-period are meaningless with a single period, so
+// they are hidden when the underlying data only covers one period.
+const TIME_SECTIONS = new Set<SectionName>([
+  "Percent YoY Growth",
+  "Bridge Analysis",
+  "Concentration YoY Growth",
+])
+
 export function StructuredView({
   view,
   rawRows,
@@ -56,6 +64,13 @@ export function StructuredView({
   const valueFmt = measureFormat(view.dependent)
   const signedFmt = measureSignedFormat(view.dependent)
 
+  // Single-period data can't support period-over-period views — hide them
+  // rather than render columns full of "—".
+  const hasMultiPeriod = pivot.periods.length > 1
+  const sections = SECTIONS.filter(
+    (name) => hasMultiPeriod || !TIME_SECTIONS.has(name),
+  )
+
   const toggle = (name: SectionName) =>
     setOpen((s) => ({ ...s, [name]: !s[name] }))
 
@@ -71,7 +86,14 @@ export function StructuredView({
         </span>
       </div>
 
-      {SECTIONS.map((name) => (
+      {!hasMultiPeriod && (
+        <p className="rounded border border-border bg-secondary/40 px-3 py-2 text-[12px] text-muted-foreground">
+          Growth, bridge, and concentration-trend views need at least two
+          periods. This dataset covers a single period.
+        </p>
+      )}
+
+      {sections.map((name) => (
         <Section
           key={name}
           name={name}

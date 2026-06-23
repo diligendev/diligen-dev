@@ -1163,7 +1163,7 @@ function SecuritySection() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => toast.success("Signed out of all other sessions")}
+            onClick={() => toast.info("Remote session sign-out activates with the auth backend.")}
             className="h-8 rounded-sm border-border px-3 text-[13px]"
           >
             Sign out all other sessions

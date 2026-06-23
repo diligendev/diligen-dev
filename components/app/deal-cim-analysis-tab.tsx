@@ -14,6 +14,14 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Section } from "@/components/app/section"
 import { RedFlagItem } from "@/components/app/red-flag-item"
 import { Textarea } from "@/components/ui/textarea"
@@ -63,6 +71,7 @@ export function DealCimAnalysisTab({
   const [phase, setPhase] = useState<AnalysisPhase>("input")
   const [stageIndex, setStageIndex] = useState(0)
   const [errorMessage, setErrorMessage] = useState("")
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const resultRef = useRef<HTMLDivElement>(null)
   const running = phase === "processing"
   const rec = recConfig[a.recommendation] ?? recConfig["Needs More Information"]
@@ -88,9 +97,22 @@ export function DealCimAnalysisTab({
     }
   }, [running])
 
-  async function runAiAnalysis(e: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (running) return
+    if (hasSavedAnalysis) {
+      setConfirmOpen(true)
+      return
+    }
+    void runAnalysis()
+  }
+
+  const confirmRerun = () => {
+    setConfirmOpen(false)
+    void runAnalysis()
+  }
+
+  async function runAnalysis() {
     setErrorMessage("")
     setStageIndex(0)
     setPhase("processing")
@@ -130,12 +152,14 @@ export function DealCimAnalysisTab({
         hasSavedAnalysis={hasSavedAnalysis}
         onChange={setDocumentText}
         onRetry={() => setPhase("input")}
-        onSubmit={runAiAnalysis}
+        onSubmit={handleSubmit}
         phase={phase}
         stageIndex={stageIndex}
         uploadedCim={uploadedCim}
       />
 
+      {hasSavedAnalysis && (
+      <>
       {/* Recommendation banner */}
       <div
         className={cn(
@@ -282,6 +306,36 @@ export function DealCimAnalysisTab({
           ))}
         </ol>
       </Section>
+      </>
+      )}
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Replace current analysis?</DialogTitle>
+            <DialogDescription>
+              Running a new analysis overwrites the existing AI analysis for this
+              deal. This can&apos;t be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmRerun}
+              className="bg-accent text-accent-foreground hover:bg-accent/90"
+            >
+              Replace analysis
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )
@@ -377,6 +431,9 @@ function AnalysisRunner({
               Structured output was saved to this deal. Results below are AI-generated and should be verified during diligence.
             </p>
           </div>
+          <Button type="button" variant="outline" onClick={onRetry}>
+            Run another analysis
+          </Button>
         </div>
       )}
 

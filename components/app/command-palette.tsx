@@ -6,8 +6,10 @@ import {
   LayoutDashboard,
   ListChecks,
   LineChart,
+  FlaskConical,
   Settings,
   Building2,
+  PhoneCall,
 } from "lucide-react"
 
 import {
@@ -23,7 +25,8 @@ import { deals } from "@/lib/mock-data"
 const pages = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Deals", href: "/deals", icon: ListChecks },
-  { label: "KPI Tracker", href: "/kpi-tracker", icon: ListChecks },
+  { label: "Revenue Explorer", href: "/analysis", icon: FlaskConical },
+  { label: "Call Notes", href: "/call-notes", icon: PhoneCall },
   { label: "Trend Analyzer", href: "/trend-analyzer", icon: LineChart },
   { label: "Settings", href: "/settings", icon: Settings },
 ]

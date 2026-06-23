@@ -13,11 +13,15 @@ import {
   ArrowLeft,
   Pencil,
   Download,
-  Upload,
   Info,
   FolderOpen,
   Copy,
   Trash2,
+  UploadCloud,
+  FileSpreadsheet,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -49,7 +53,6 @@ import {
   type AnalysisRecord,
   type AnalysisStatus,
   type AnalysisView,
-  type Period,
   type RawRow,
   sampleAnalyses,
   getRawDataset,
@@ -57,15 +60,26 @@ import {
   fmtCount,
   exportRawToCsv,
   exportViewToCsv,
-  NUMERIC_COLUMNS,
-  columnLabels,
 } from "@/lib/analysis-data"
+import {
+  CANONICAL_FIELDS,
+  type CanonicalField,
+  type ColumnMapping,
+  type DetectionResult,
+  type Grain,
+  allowedPeriodsForGrain,
+  detectColumns,
+  formatPreviewCell,
+  initialMapping,
+  missingRequired,
+  timeViewsAvailable,
+} from "@/lib/analysis-ingest"
 import type { Deal, DealDocument } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 
 type Mode =
   | { kind: "list" }
-  | { kind: "create"; step: number }
+  | { kind: "create" }
   | { kind: "workspace"; analysisId: string }
 
 const statusChip: Record<AnalysisStatus, string> = {
@@ -108,12 +122,6 @@ export function DealAnalysesTab({
       return next
     })
 
-  // create flow state
-  const [draftName, setDraftName] = useState("")
-  const [draftDocs, setDraftDocs] = useState<string[]>([])
-  const [draftPeriod, setDraftPeriod] = useState<Period>("Annual")
-  const [draftMeasure, setDraftMeasure] = useState("revenue")
-
   // Inline rename state for list/grid rows
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState("")
@@ -135,27 +143,26 @@ export function DealAnalysesTab({
     })
   }, [analyses, search, statusFilter, sortBy])
 
-  const startCreate = () => {
-    setDraftName("")
-    setDraftDocs([])
-    setDraftPeriod("Annual")
-    setDraftMeasure("revenue")
-    setMode({ kind: "create", step: 1 })
-  }
+  const startCreate = () => setMode({ kind: "create" })
 
-  const finishCreate = () => {
+  const finishCreate = (config: {
+    name: string
+    sourceFileName: string
+    grain: Grain
+    docCount: number
+  }) => {
     const id = nextAnalysisId()
     const rec: AnalysisRecord = {
       id,
-      name: draftName.trim() || `Untitled Analysis`,
+      name: config.name.trim() || "Untitled Analysis",
       dealId: deal.id,
       dealName: deal.company,
-      docCount: draftDocs.length,
+      docCount: config.docCount,
       createdBy: { name: "You", initials: "YO" },
       createdDate: new Date().toISOString().slice(0, 10),
       status: "Ready",
-      defaultPeriod: draftPeriod,
-      defaultMeasure: draftMeasure,
+      sourceFileName: config.sourceFileName,
+      grain: config.grain,
     }
     setAnalyses((prev) => [rec, ...prev])
     toast.success(`Analysis created: ${rec.name}`)
@@ -199,18 +206,8 @@ export function DealAnalysesTab({
   if (mode.kind === "create") {
     return (
       <CreateFlow
-        step={mode.step}
         deal={deal}
         documents={documents}
-        name={draftName}
-        setName={setDraftName}
-        period={draftPeriod}
-        setPeriod={setDraftPeriod}
-        measure={draftMeasure}
-        setMeasure={setDraftMeasure}
-        selectedDocs={draftDocs}
-        setSelectedDocs={setDraftDocs}
-        onStep={(step) => setMode({ kind: "create", step })}
         onCancel={() => setMode({ kind: "list" })}
         onFinish={finishCreate}
       />
@@ -610,58 +607,107 @@ function ViewActionsMenu({
 // ----------------------------------------------------------------------------
 
 function CreateFlow({
-  step,
   deal,
   documents,
-  name,
-  setName,
-  period,
-  setPeriod,
-  measure,
-  setMeasure,
-  selectedDocs,
-  setSelectedDocs,
-  onStep,
   onCancel,
   onFinish,
 }: {
-  step: number
   deal: Deal
   documents: DealDocument[]
-  name: string
-  setName: (v: string) => void
-  period: Period
-  setPeriod: (v: Period) => void
-  measure: string
-  setMeasure: (v: string) => void
-  selectedDocs: string[]
-  setSelectedDocs: (v: string[]) => void
-  onStep: (step: number) => void
   onCancel: () => void
-  onFinish: () => void
+  onFinish: (config: {
+    name: string
+    sourceFileName: string
+    grain: Grain
+    docCount: number
+  }) => void
 }) {
+  const NONE = "__none__"
   const totalSteps = 3
-  const primaryLabel =
-    step === totalSteps ? "Create Analysis" : "Continue"
-
-  const canContinue =
-    step === 1 ? name.trim().length > 0 : step === 3 ? selectedDocs.length > 0 : true
-
-  const handlePrimary = () => {
-    if (!canContinue) return
-    if (step < totalSteps) onStep(step + 1)
-    else onFinish()
-  }
-
-  const toggleDoc = (id: string) =>
-    setSelectedDocs(
-      selectedDocs.includes(id)
-        ? selectedDocs.filter((d) => d !== id)
-        : [...selectedDocs, id],
-    )
+  const [step, setStep] = useState(1)
+  const [fileName, setFileName] = useState("")
+  const [file, setFile] = useState<File | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+  const [detecting, setDetecting] = useState(false)
+  const [detectError, setDetectError] = useState("")
+  const [detection, setDetection] = useState<DetectionResult | null>(null)
+  const [mapping, setMapping] = useState<ColumnMapping>({})
+  const [name, setName] = useState("")
 
   // Only spreadsheets can seed the pivot engine — see isSpreadsheet note above.
-  const sourceFiles = documents.filter((d) => isSpreadsheet(d.name))
+  const spreadsheetDocs = documents.filter((d) => isSpreadsheet(d.name))
+  const missing = missingRequired(mapping)
+  const mappedFields = CANONICAL_FIELDS.filter((f) => mapping[f.key])
+
+  // Detection is the backend seam — see detectColumns() in analysis-ingest.ts.
+  const runDetection = async (f: File | null, fname: string) => {
+    setDetecting(true)
+    setDetectError("")
+    setDetection(null)
+    try {
+      const result = await detectColumns({ file: f, fileName: fname, dealId: deal.id })
+      setDetection(result)
+      setMapping(initialMapping(result))
+      setName((prev) => prev || suggestName(fname))
+    } catch {
+      setDetectError(
+        "We couldn't read that file. Confirm it's a valid .xlsx, .xls, or .csv and try again.",
+      )
+    } finally {
+      setDetecting(false)
+    }
+  }
+
+  const chooseFile = (f: File) => {
+    setFile(f)
+    setFileName(f.name)
+    setDetection(null)
+  }
+  const chooseDoc = (docName: string) => {
+    setFile(null)
+    setFileName(docName)
+    setDetection(null)
+  }
+  const clearFile = () => {
+    setFile(null)
+    setFileName("")
+    setDetection(null)
+  }
+
+  const setFieldMapping = (field: CanonicalField, col: string) =>
+    setMapping((m) => {
+      const next = { ...m }
+      if (col === NONE) delete next[field]
+      else next[field] = col
+      return next
+    })
+
+  const canPrimary =
+    step === 1
+      ? fileName.trim().length > 0
+      : step === 2
+        ? !!detection && !detecting && missing.length === 0
+        : !!detection && name.trim().length > 0
+
+  const handlePrimary = () => {
+    if (!canPrimary) return
+    if (step === 1) {
+      setStep(2)
+      if (!detection) void runDetection(file, fileName)
+    } else if (step === 2) {
+      setStep(3)
+    } else {
+      onFinish({
+        name,
+        sourceFileName: fileName,
+        grain: detection!.stats.grain,
+        docCount: 1,
+      })
+    }
+  }
+
+  const primaryLabel = step === totalSteps ? "Create analysis" : "Continue"
+  const stepLabel = step === 1 ? "Upload" : step === 2 ? "Map columns" : "Review"
 
   return (
     <div className="flex flex-col gap-5">
@@ -669,18 +715,18 @@ function CreateFlow({
       <div className="flex items-center justify-between">
         <button
           type="button"
-          onClick={() => (step === 1 ? onCancel() : onStep(step - 1))}
+          onClick={() => (step === 1 ? onCancel() : setStep(step - 1))}
           className="inline-flex items-center gap-1 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           <ChevronLeft className="size-4" />
-          Back
+          {step === 1 ? "Cancel" : "Back"}
         </button>
         <span className="text-[12px] font-medium text-muted-foreground">
-          Step {step} of {totalSteps}
+          Step {step} of {totalSteps} · {stepLabel}
         </span>
         <Button
           size="sm"
-          disabled={!canContinue}
+          disabled={!canPrimary}
           onClick={handlePrimary}
           className="h-8 rounded-sm bg-accent px-4 text-[13px] text-accent-foreground hover:bg-accent/90"
         >
@@ -697,173 +743,383 @@ function CreateFlow({
       </div>
 
       <div className="rounded border border-border bg-card p-6 shadow-[0_1px_3px_0_rgb(0,0,0,0.04)]">
+        {/* STEP 1 — UPLOAD */}
         {step === 1 && (
           <div className="flex flex-col gap-5">
             <div>
               <h3 className="text-[15px] font-semibold text-foreground">
-                Name your analysis
+                Upload revenue data
               </h3>
-              <p className="mt-1 text-[12px] text-muted-foreground">
-                Give this analysis a descriptive name and confirm the deal it belongs to.
+              <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-muted-foreground">
+                Upload the company&apos;s revenue detail or data tape — the
+                transaction, invoice, or revenue-by-customer export. Diligen reads
+                the columns for you in the next step.
               </p>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <span className="atlas-label">Analysis Name</span>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Revenue by Product Line"
-                className="h-9 rounded-sm text-[13px] focus-visible:ring-accent"
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <RequirementCard
+                tone="required"
+                title="Required columns"
+                items={CANONICAL_FIELDS.filter((f) => f.required)}
+              />
+              <RequirementCard
+                tone="optional"
+                title="Optional (enables more views)"
+                items={CANONICAL_FIELDS.filter((f) => !f.required)}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <span className="atlas-label">Deal</span>
-              <div className="flex h-9 items-center rounded-sm border border-border bg-secondary/50 px-3 text-[13px] text-foreground">
-                {deal.company}
+
+            {fileName ? (
+              <div className="flex items-center justify-between rounded border border-border bg-secondary/30 px-4 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <FileSpreadsheet className="size-5 shrink-0 text-accent" />
+                  <span className="truncate text-[13px] font-medium text-foreground">
+                    {fileName}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearFile}
+                  className="text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Remove
+                </button>
               </div>
-            </div>
+            ) : (
+              <label
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  setDragOver(true)
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  setDragOver(false)
+                  const f = e.dataTransfer.files?.[0]
+                  if (f) chooseFile(f)
+                }}
+                className={cn(
+                  "flex cursor-pointer flex-col items-center justify-center gap-2 rounded border border-dashed px-6 py-10 text-center transition-colors",
+                  dragOver
+                    ? "border-accent bg-accent/5"
+                    : "border-border hover:border-accent/50 hover:bg-secondary/30",
+                )}
+              >
+                <UploadCloud className="size-6 text-muted-foreground" />
+                <span className="text-[13px] font-medium text-foreground">
+                  Drag a spreadsheet here, or click to browse
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  .xlsx, .xls, or .csv
+                </span>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) chooseFile(f)
+                  }}
+                />
+              </label>
+            )}
+
+            {spreadsheetDocs.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <span className="atlas-label">
+                  Or select a spreadsheet already on this deal
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {spreadsheetDocs.map((doc) => {
+                    const selected = !file && fileName === doc.name
+                    return (
+                      <button
+                        key={doc.id}
+                        type="button"
+                        onClick={() => chooseDoc(doc.name)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+                          selected
+                            ? "border-accent bg-accent/5 text-foreground"
+                            : "border-border bg-card text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <FileText className="size-3.5" />
+                        {doc.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
+        {/* STEP 2 — MAP COLUMNS */}
         {step === 2 && (
           <div className="flex flex-col gap-5">
             <div>
               <h3 className="text-[15px] font-semibold text-foreground">
-                Configure analysis basis
+                Confirm columns
               </h3>
               <p className="mt-1 text-[12px] text-muted-foreground">
-                Set the default period granularity and primary measure. You can add
-                detailed views later.
+                We detected how your file maps to the fields Diligen analyzes.
+                Review each one — correct any that are wrong before continuing.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <span className="atlas-label">Default Period</span>
-                <Select
-                  value={period}
-                  onValueChange={(v) => v && setPeriod(v as Period)}
-                >
-                  <SelectTrigger className="h-9 rounded-sm border-border text-[13px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Annual" className="text-[13px]">Annual</SelectItem>
-                    <SelectItem value="Quarterly" className="text-[13px]">Quarterly</SelectItem>
-                  </SelectContent>
-                </Select>
+
+            {detecting && (
+              <div className="flex min-h-48 flex-col items-center justify-center gap-3 py-6 text-center">
+                <Loader2 className="size-6 animate-spin text-accent" />
+                <p className="text-[13px] font-medium text-foreground">
+                  Reading {fileName} and detecting columns…
+                </p>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <span className="atlas-label">Primary Measure</span>
-                <Select
-                  value={measure}
-                  onValueChange={(v) => v && setMeasure(v)}
+            )}
+
+            {!detecting && detectError && (
+              <div className="flex min-h-48 flex-col items-center justify-center gap-3 py-6 text-center">
+                <AlertTriangle className="size-6 text-red-600" />
+                <p className="max-w-md text-[13px] text-muted-foreground">
+                  {detectError}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void runDetection(file, fileName)}
                 >
-                  <SelectTrigger className="h-9 rounded-sm border-border text-[13px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {NUMERIC_COLUMNS.map((c) => (
-                      <SelectItem key={c} value={c} className="text-[13px]">
-                        {columnLabels[c] ?? c}
-                      </SelectItem>
+                  Try again
+                </Button>
+              </div>
+            )}
+
+            {!detecting && detection && (
+              <>
+                {detection.warnings.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    {detection.warnings.map((w) => (
+                      <div
+                        key={w}
+                        className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800"
+                      >
+                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                        <span>{w}</span>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-2.5">
+                  {CANONICAL_FIELDS.map((f) => {
+                    const suggested = detection.suggested[f.key]
+                    const isSuggestion =
+                      suggested && mapping[f.key] === suggested.column
+                    return (
+                      <div
+                        key={f.key}
+                        className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[200px_1fr]"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-[13px] font-medium text-foreground">
+                            {f.label}
+                            {f.required && <span className="ml-1 text-red-500">*</span>}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {f.hint}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={mapping[f.key] ?? NONE}
+                            onValueChange={(v) => v && setFieldMapping(f.key, v)}
+                          >
+                            <SelectTrigger className="h-9 flex-1 rounded-sm border-border text-[13px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem
+                                value={NONE}
+                                className="text-[13px] text-muted-foreground"
+                              >
+                                Not mapped
+                              </SelectItem>
+                              {detection.sourceColumns.map((c) => (
+                                <SelectItem key={c} value={c} className="text-[13px]">
+                                  {c}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {isSuggestion && (
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                              <CheckCircle2 className="size-3" />
+                              {Math.round(suggested!.confidence * 100)}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {missing.length > 0 && (
+                  <p className="text-[12px] text-red-600">
+                    Map the required field{missing.length > 1 ? "s" : ""}:{" "}
+                    {missing
+                      .map((k) => CANONICAL_FIELDS.find((f) => f.key === k)?.label)
+                      .join(", ")}
+                    .
+                  </p>
+                )}
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="atlas-label">Preview (first rows, as mapped)</span>
+                  <div className="overflow-auto rounded border border-border">
+                    <table className="w-full border-collapse text-[12px]">
+                      <thead className="bg-secondary/50">
+                        <tr>
+                          {mappedFields.map((f) => (
+                            <th
+                              key={f.key}
+                              className="border-b border-border px-3 py-2 text-left font-semibold text-muted-foreground"
+                            >
+                              {f.label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detection.preview.map((row, i) => (
+                          <tr key={i} className="hover:bg-secondary/40">
+                            {mappedFields.map((f) => (
+                              <td
+                                key={f.key}
+                                className="border-b border-border px-3 py-1.5 text-foreground"
+                              >
+                                {formatPreviewCell(f.key, row[mapping[f.key]!])}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
-        {step === 3 && (
+        {/* STEP 3 — REVIEW */}
+        {step === 3 && detection && (
           <div className="flex flex-col gap-5">
             <div>
               <h3 className="text-[15px] font-semibold text-foreground">
-                Select source data file
+                Review &amp; create
               </h3>
               <p className="mt-1 text-[12px] text-muted-foreground">
-                The builder pivots transaction-level data, so analyses are built
-                from structured spreadsheets only (.xlsx, .xls, .csv) — typically
-                the revenue detail or data tape. CIMs and call notes are reviewed
-                elsewhere.
+                Confirm what was parsed, then name the analysis.
               </p>
             </div>
-            {sourceFiles.length === 0 ? (
-              <div className="rounded border border-dashed border-border bg-secondary/20 px-5 py-12 text-center">
-                <p className="text-[13px] font-medium text-foreground">
-                  No spreadsheet data files for this deal
-                </p>
-                <p className="mx-auto mt-1 max-w-sm text-[12px] text-muted-foreground">
-                  Upload the company&apos;s revenue detail or financial data file
-                  (.xlsx or .csv) to the deal&apos;s Documents, then build an
-                  analysis from it here.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded border border-border">
-                <table className="w-full border-collapse text-[13px]">
-                  <thead>
-                    <tr className="border-b border-border bg-secondary/50">
-                      <th className="w-10 px-3 py-2.5" />
-                      <th className="px-3 py-2.5 text-left atlas-label">Title</th>
-                      <th className="px-3 py-2.5 text-left atlas-label">Type</th>
-                      <th className="px-3 py-2.5 text-left atlas-label">Status</th>
-                      <th className="px-3 py-2.5 text-left atlas-label">Date Uploaded</th>
-                      <th className="px-3 py-2.5 text-left atlas-label">Category</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {sourceFiles.map((doc) => {
-                      const ext = doc.name.split(".").pop()?.toLowerCase() ?? "file"
-                      const checked = selectedDocs.includes(doc.id)
-                      return (
-                        <tr
-                          key={doc.id}
-                          onClick={() => toggleDoc(doc.id)}
-                          className={cn(
-                            "cursor-pointer transition-colors hover:bg-secondary/40",
-                            checked && "bg-accent/5",
-                          )}
-                        >
-                          <td className="px-3 py-3">
-                            <Checkbox checked={checked} className="size-4 pointer-events-none" />
-                          </td>
-                          <td className="px-3 py-3 font-medium text-foreground">
-                            {doc.name}
-                          </td>
-                          <td className="px-3 py-3">
-                            <span className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase text-muted-foreground">
-                              {ext}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3">
-                            <span
-                              className={cn(
-                                "rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset",
-                                doc.extracted
-                                  ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                                  : "bg-amber-50 text-amber-700 ring-amber-200",
-                              )}
-                            >
-                              {doc.extracted ? "Ready" : "In Progress"}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3 text-muted-foreground">
-                            {doc.uploadDate}
-                          </td>
-                          <td className="px-3 py-3 text-muted-foreground">{doc.type}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <p className="text-[12px] text-muted-foreground">
-              {selectedDocs.length} file{selectedDocs.length === 1 ? "" : "s"} selected
+
+            <div className="grid grid-cols-2 gap-px overflow-hidden rounded border border-border bg-border sm:grid-cols-4">
+              <Stat label="Rows" value={detection.stats.rowCount.toLocaleString()} />
+              <Stat
+                label="Customers"
+                value={detection.stats.customerCount.toLocaleString()}
+              />
+              <Stat
+                label="Period"
+                value={`${detection.stats.periodStart.slice(0, 7)} → ${detection.stats.periodEnd.slice(0, 7)}`}
+              />
+              <Stat
+                label="Total revenue"
+                value={fmtCurrency(detection.stats.totalRevenue)}
+              />
+            </div>
+
+            <div className="flex items-start gap-2 rounded border border-border bg-secondary/30 px-3 py-2.5 text-[12px] text-muted-foreground">
+              <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-accent" />
+              <span>
+                Granularity:{" "}
+                <span className="font-medium text-foreground">
+                  {detection.stats.grain}
+                </span>
+                .{" "}
+                {timeViewsAvailable(detection.stats.grain)
+                  ? "Growth, bridge, and concentration-trend views will be available."
+                  : "Single-period data — period-over-period views will be hidden."}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <span className="atlas-label">Analysis name</span>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Revenue by Customer Cohort"
+                className="h-9 rounded-sm text-[13px] focus-visible:ring-accent"
+              />
+            </div>
+
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Tip: cross-check the parsed total revenue against the CIM-stated
+              figure on the deal&apos;s Overview tab — a gap is worth a diligence
+              question.
             </p>
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function suggestName(fileName: string): string {
+  const base = fileName.replace(/\.[^.]+$/, "").trim()
+  return base || "Revenue Analysis"
+}
+
+function RequirementCard({
+  tone,
+  title,
+  items,
+}: {
+  tone: "required" | "optional"
+  title: string
+  items: { key: string; label: string }[]
+}) {
+  return (
+    <div className="rounded border border-border bg-secondary/20 p-3">
+      <p
+        className={cn(
+          "mb-2 text-[11px] font-semibold uppercase tracking-wide",
+          tone === "required" ? "text-foreground" : "text-muted-foreground",
+        )}
+      >
+        {title}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((i) => (
+          <span
+            key={i.key}
+            className="rounded-sm border border-border bg-card px-2 py-0.5 text-[12px] text-foreground"
+          >
+            {i.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-card px-3 py-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-0.5 text-[13px] font-semibold text-foreground">{value}</p>
     </div>
   )
 }
@@ -941,9 +1197,6 @@ function AnalysisWorkspace({
     toast.success(`View generated: ${cfg.name}`)
   }
 
-  const handleImportUnavailable = () => {
-    toast.info("Spreadsheet import is temporarily disabled until server-side processing is added.")
-  }
   const handleExport = () => {
     try {
       if (active.isRaw) {
@@ -1051,44 +1304,41 @@ function AnalysisWorkspace({
             <ArrowLeft className="size-3.5" />
             Analyses
           </button>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleImportUnavailable}
-              className="inline-flex size-8 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
-              aria-label="Import spreadsheet"
-              title="Import spreadsheet"
-            >
-              <Upload className="size-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={handleExport}
-              className="inline-flex size-8 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
-              aria-label="Export CSV"
-              title="Export CSV"
-            >
-              <Download className="size-3.5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleExport}
+            className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-border bg-card px-2.5 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Export CSV"
+            title="Export current view to CSV"
+          >
+            <Download className="size-3.5" />
+            Export CSV
+          </button>
         </div>
 
         <div className="flex-1 overflow-auto p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <h2 className="text-[17px] font-semibold tracking-tight text-foreground">
-              {active.isRaw ? "Raw Table" : title}
-            </h2>
-            {!active.isRaw && (
-              <button
-                type="button"
-                onClick={() => startViewRename(active)}
-                className="inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                aria-label="Rename view"
-                title="Rename view"
-              >
-                <Pencil className="size-3.5" />
-              </button>
-            )}
+          <div className="mb-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[17px] font-semibold tracking-tight text-foreground">
+                {active.isRaw ? "Raw Table" : title}
+              </h2>
+              {!active.isRaw && (
+                <button
+                  type="button"
+                  onClick={() => startViewRename(active)}
+                  className="inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  aria-label="Rename view"
+                  title="Rename view"
+                >
+                  <Pencil className="size-3.5" />
+                </button>
+              )}
+            </div>
+            <p className="mt-1 text-[12px] text-muted-foreground">
+              From {record.sourceFileName ?? "sample dataset"} ·{" "}
+              {rows.length.toLocaleString()} rows
+              {record.grain ? ` · ${record.grain}` : ""}
+            </p>
           </div>
 
           {active.isRaw ? (
@@ -1104,6 +1354,7 @@ function AnalysisWorkspace({
         onOpenChange={setModalOpen}
         defaultPeriod={record.defaultPeriod}
         defaultMeasure={record.defaultMeasure}
+        allowedPeriods={allowedPeriodsForGrain(record.grain)}
         onCreate={addView}
       />
     </div>

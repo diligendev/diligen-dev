@@ -7,7 +7,7 @@ const protectedRoutes = [
   "/dashboard",
   "/deals",
   "/analysis",
-  "/kpi-tracker",
+  "/call-notes",
   "/trend-analyzer",
   "/settings",
 ]

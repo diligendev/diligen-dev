@@ -128,7 +128,7 @@ Production readiness:
 
 - [x] Start with Supabase email/password or magic-link auth.
 - [x] Make signup invite-only for the current workspace flow.
-- [x] Protect app routes under `/dashboard`, `/deals`, `/analysis`, `/kpi-tracker`, `/trend-analyzer`, and `/settings`.
+- [x] Protect app routes under `/dashboard`, `/deals`, `/analysis`, `/call-notes`, `/trend-analyzer`, and `/settings`.
 - [x] Redirect logged-out users to `/login`.
 - [x] Create a user profile after invite acceptance.
 - [x] Attach each user to an organization/workspace.

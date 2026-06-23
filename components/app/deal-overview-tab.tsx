@@ -18,9 +18,10 @@ import { cn } from "@/lib/utils"
 import type { AnalysisMetadata } from "@/lib/data/deals"
 
 export function DealOverviewTab({
-  deal: _deal,
+  deal,
   analysis,
   analysisMetadata,
+  hasSavedAnalysis,
   checklist,
   documents,
   kpiHistory,
@@ -29,15 +30,68 @@ export function DealOverviewTab({
   deal: Deal
   analysis: DealAnalysis
   analysisMetadata: AnalysisMetadata | null
+  hasSavedAnalysis: boolean
   checklist: ChecklistItem[]
   documents: DealDocument[]
   kpiHistory: KpiEntry[]
   onNavigate: (tab: string) => void
 }) {
-  void _deal
   void checklist
   void documents
   void kpiHistory
+
+  if (!hasSavedAnalysis) {
+    return (
+      <div className="flex flex-col items-center gap-4 rounded border border-dashed border-border bg-card px-6 py-16 text-center">
+        <p className="text-[15px] font-semibold text-foreground">No analysis yet</p>
+        {deal.hasCim ? (
+          <>
+            <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
+              This deal hasn&apos;t been analyzed. Run a CIM analysis to populate the
+              recommendation, key metrics, highlights, risks, and diligence questions.
+            </p>
+            <button
+              type="button"
+              onClick={() => onNavigate("analysis")}
+              className="inline-flex h-9 items-center gap-1.5 rounded-sm bg-accent px-4 text-[13px] font-medium text-accent-foreground transition-colors hover:bg-accent/90"
+            >
+              Go to CIM Analysis
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
+              This deal was added manually, so there&apos;s no CIM to analyze yet.
+              Build it up from manual inputs — or paste CIM text to run an AI first pass.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => onNavigate("financials")}
+                className="inline-flex h-9 items-center gap-1.5 rounded-sm bg-accent px-4 text-[13px] font-medium text-accent-foreground transition-colors hover:bg-accent/90"
+              >
+                Add financials
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate("valuation")}
+                className="inline-flex h-9 items-center gap-1.5 rounded-sm border border-border bg-card px-4 text-[13px] font-medium text-foreground transition-colors hover:bg-secondary"
+              >
+                Open valuation
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate("analysis")}
+              className="text-[12px] font-medium text-accent transition-colors hover:text-accent/80"
+            >
+              or paste CIM text to run an analysis
+            </button>
+          </>
+        )}
+      </div>
+    )
+  }
 
   const recommendationTone =
     analysis.recommendation === "Recommend"
