@@ -1,25 +1,25 @@
-import { Target, Layers, Calculator, FileCheck } from "lucide-react"
+import { FileSearch, Scale, PhoneCall, FileCheck } from "lucide-react"
 
 const capabilities = [
   {
-    icon: Target,
-    title: "Alpha Generation",
-    body: "Diligen helps you kill bad deals in hours, not weeks, and double down on winners before the competition clears their inbox.",
+    icon: FileSearch,
+    title: "First-pass CIM analysis",
+    body: "Upload a CIM or paste the text and Diligen returns a scored recommendation, a company snapshot, and the headline metrics — enough to decide whether it's worth a call, in minutes.",
   },
   {
-    icon: Layers,
-    title: "Scale Without Sacrifice",
-    body: "Handle 2x the deal flow with 0x the burnout. Diligen automates the grunt work — data cuts, cleaning, anomaly detection, formatting and modeling.",
+    icon: Scale,
+    title: "Earnings you can trust",
+    body: "Diligen rebuilds the adjusted-EBITDA bridge, flags add-backs that shouldn't be normalized, and grades earnings quality — before you anchor on a multiple.",
   },
   {
-    icon: Calculator,
-    title: "Calculation-Grade Precision",
-    body: "Every output is computed, not summarized. Real math on your real numbers — cross-checked to source cells and ready for LP-level scrutiny.",
+    icon: PhoneCall,
+    title: "Management calls, structured",
+    body: "Drop in rough call notes and get back contradictions against the CIM, follow-up questions, and action items — tracked across every conversation on the deal.",
   },
   {
     icon: FileCheck,
-    title: "Audit-Grade Transparency",
-    body: "Diligen links every output to its raw source, with Excel-ready exports and complete audit trails — so you can trust every number.",
+    title: "IC-ready output",
+    body: "A working valuation and an investment-committee memo, assembled from the analysis and diligence record — editable, source-aware, and ready to print.",
   },
 ]
 
@@ -48,8 +48,8 @@ export function Capabilities() {
             Platform Capabilities
           </p>
           <h2 className="text-balance text-4xl font-bold leading-tight tracking-[-0.025em] text-foreground sm:text-5xl">
-            Say No Sooner.{" "}
-            <span style={{ color: "#EBF2FF", opacity: 0.5 }}>Say Yes With Conviction.</span>
+            What Diligen does{" "}
+            <span style={{ color: "#EBF2FF", opacity: 0.5 }}>before your first call.</span>
           </h2>
           <div
             className="mt-4 h-px w-16"

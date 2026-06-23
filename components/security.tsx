@@ -1,35 +1,34 @@
-import { ShieldCheck, Lock, ServerOff, Eye } from "lucide-react"
+import { ShieldCheck, Lock, EyeOff, KeyRound } from "lucide-react"
 
 const pillars = [
   {
-    icon: ServerOff,
-    title: "Zero data retention",
-    body: "Every document is processed ephemerally and purged immediately after analysis completes. Nothing persists on our infrastructure — ever.",
+    icon: EyeOff,
+    title: "Never training data",
+    body: "Your deal files are never used to train, fine-tune, or benchmark any model. Your edge stays yours.",
   },
   {
     icon: Lock,
-    title: "AES-256 encryption",
-    body: "All data encrypted in transit (TLS 1.3) and at rest (AES-256-GCM). Role-level security ensures only authorized team members access deal workspaces.",
+    title: "Encrypted end to end",
+    body: "Documents and analysis are encrypted in transit and at rest using industry-standard encryption.",
   },
   {
     icon: ShieldCheck,
-    title: "Audit-ready access controls",
-    body: "Granular role-level permissions ensure only authorized team members access deal workspaces. Full activity logs available for internal compliance review.",
+    title: "Workspace-level access",
+    body: "Role-level permissions keep each deal visible only to the team members you invite into the workspace.",
   },
   {
-    icon: Eye,
-    title: "No model training on your data",
-    body: "Your deal data is never used to train, fine-tune, or benchmark any model. Your information advantage remains yours — permanently.",
+    icon: KeyRound,
+    title: "You stay in control",
+    body: "Your data lives in your workspace, is never shared across firms, and can be exported or removed on request.",
   },
 ]
 
 const complianceItems = [
-  "No training on your data",
-  "Zero data retention after analysis",
-  "AES-256 end-to-end encryption",
-  "Role-level security (RLS) enforced",
-  "Granular audit logs & access controls",
-  "FINRA & SEC data handling compliant",
+  "Never used to train models",
+  "Encrypted in transit and at rest",
+  "Role-level access per workspace",
+  "Data isolated to your firm",
+  "Export or delete on request",
 ]
 
 export function Security() {
@@ -55,13 +54,13 @@ export function Security() {
             className="mb-4 text-[10px] font-bold uppercase tracking-[0.2em]"
             style={{ color: "rgba(26,190,189,0.60)" }}
           >
-            Enterprise-Grade Protection
+            Data &amp; Trust
           </p>
           <h2
             className="text-balance text-4xl font-semibold leading-tight tracking-[-0.025em] sm:text-5xl"
             style={{ color: "#EBF2FF" }}
           >
-            Security at the Forefront
+            Your deal data stays yours.
           </h2>
           <div
             className="mt-5 h-px w-14"
@@ -77,11 +76,11 @@ export function Security() {
 
           <div>
             <p className="text-[15px] leading-[1.75]" style={{ color: "rgba(235,242,255,0.52)" }}>
-              Diligen uncovers what others miss — from cohort trends to margin compression
-              and cost drivers — surfacing what matters most. Faster decisions, deeper conviction,
-              and fewer mistakes. With enterprise-grade security built from day one, no data
-              retained, and no training on your files, you get contextual insights without
-              compromising institutional trust.
+              The work you do in Diligen is some of your most sensitive — target
+              financials, management commentary, and your own read on the deal. It stays
+              that way. Your files are never used to train models, your workspace is
+              isolated to your firm, and you can take your data with you or remove it
+              whenever you choose.
             </p>
 
             <ul className="mt-8 flex flex-col gap-3">
@@ -135,7 +134,7 @@ function SecurityBadge() {
         <path id="arc-text" d="M 100 18 a 82 82 0 1 1 -0.1 0" fill="none" />
         <text className="text-[8px]" fill="oklch(0.68 0.155 264 / 0.60)" fontSize="7.5" letterSpacing="3.5">
           <textPath href="#arc-text" startOffset="12%">
-            INSTITUTIONAL SECURITY · MERIDIAN INTELLIGENCE ·
+            DATA SECURITY · DILIGEN · DEAL INTELLIGENCE ·
           </textPath>
         </text>
       </svg>
@@ -162,7 +161,7 @@ function SecurityBadge() {
           Secured
         </p>
         <p className="font-mono text-[9px] tracking-wider text-primary/60">
-          AES-256 · RLS
+          ENCRYPTED · ISOLATED
         </p>
       </div>
     </div>

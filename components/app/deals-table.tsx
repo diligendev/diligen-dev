@@ -6,13 +6,13 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  ArrowRightLeft,
   MoreHorizontal,
   CheckCircle2,
   Loader2,
   AlertCircle,
   Eye,
   TrendingUp,
-  XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -29,7 +29,12 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
@@ -37,7 +42,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScoreBadge } from "@/components/app/score-badge"
 import { StageBadge } from "@/components/app/stage-badge"
 import { cn } from "@/lib/utils"
-import type { Deal, DealStatus } from "@/lib/mock-data"
+import { DEAL_STAGES, type Deal, type DealStatus } from "@/lib/mock-data"
 
 type SortKey = "company" | "uploadDate" | "score" | "stage"
 type SortDir = "asc" | "desc"
@@ -276,25 +281,28 @@ export function RowActions({
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        {stage === "Passed" ? (
-          <DropdownMenuItem
-            onClick={() =>
-              void updateStage("Reviewed", `Moved back to reviewed: ${company}`)
-            }
-          >
-            <CheckCircle2 />
-            Unpass deal
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem
-            onClick={() =>
-              void updateStage("Passed", `Marked as passed: ${company}`)
-            }
-          >
-            <XCircle />
-            Mark as passed
-          </DropdownMenuItem>
-        )}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <ArrowRightLeft />
+            Move to stage
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuRadioGroup
+              value={stage}
+              onValueChange={(value) => {
+                if (value && value !== stage) {
+                  void updateStage(value, `Moved ${company} to ${value}`)
+                }
+              }}
+            >
+              {DEAL_STAGES.map((s) => (
+                <DropdownMenuRadioItem key={s} value={s}>
+                  {s}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -28,7 +28,7 @@ export function SiteNav() {
           <span className="text-sm font-semibold tracking-wide text-foreground">Diligen</span>
         </Link>
 
-        {/* center nav links — Keye puts these centered */}
+        {/* center nav links */}
         <div className="hidden items-center gap-10 md:flex">
           <Link href="/platform" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             Diligence Platform
@@ -41,7 +41,7 @@ export function SiteNav() {
           </Link>
         </div>
 
-        {/* right buttons — Keye: outlined "Request a Demo" + solid blue "Sign In" */}
+        {/* right buttons */}
         <div className="flex items-center gap-3">
           <Link
             href="#demo"

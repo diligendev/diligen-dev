@@ -13,6 +13,7 @@ import {
 import { PageHeader } from "@/components/app/page-header"
 import { DealSelector } from "@/components/app/deal-selector"
 import {
+  getDeal,
   getTrendData,
   getTrendInsights,
   trendMetricMeta,
@@ -25,17 +26,31 @@ const chartConfig = {
   sector: { label: "Sector median", color: "var(--chart-2)" },
 } satisfies ChartConfig
 
-const metrics: TrendMetric[] = ["revenue", "margin", "churn"]
 type Granularity = "quarterly" | "annual"
+
+// Churn is only a meaningful trend metric for recurring-revenue businesses. For
+// transactional models (logistics, food, devices, retail) we hide it rather
+// than show a metric a sector specialist would never track for that business.
+const RECURRING_REVENUE_SECTORS = /saas|software|subscription/i
+function metricsForSector(sector: string): TrendMetric[] {
+  return RECURRING_REVENUE_SECTORS.test(sector)
+    ? ["revenue", "margin", "churn"]
+    : ["revenue", "margin"]
+}
 
 export function TrendAnalyzerView({ dealId }: { dealId: string }) {
   const [deal, setDeal] = useState(dealId)
   const [metric, setMetric] = useState<TrendMetric>("revenue")
   const [granularity, setGranularity] = useState<Granularity>("quarterly")
+  // Metrics available for this deal's business model. If the active metric isn't
+  // applicable to the selected deal (e.g. churn on a logistics deal), fall back
+  // to revenue so the chart never renders an irrelevant series.
+  const availableMetrics = metricsForSector(getDeal(deal)?.sector ?? "")
+  const safeMetric = availableMetrics.includes(metric) ? metric : "revenue"
   const dealTrendData = getTrendData(deal)
   const dealInsights = getTrendInsights(deal)
-  const data = dealTrendData[granularity][metric]
-  const meta = trendMetricMeta[metric]
+  const data = dealTrendData[granularity][safeMetric]
+  const meta = trendMetricMeta[safeMetric]
 
   const first = data[0]
   const last  = data[data.length - 1]
@@ -55,11 +70,11 @@ export function TrendAnalyzerView({ dealId }: { dealId: string }) {
         {/* Metric toggle */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <ToggleGroup
-            value={[metric]}
+            value={[safeMetric]}
             onValueChange={(v) => { if (v[0]) setMetric(v[0] as TrendMetric) }}
             className="inline-flex gap-0 overflow-hidden rounded border border-border bg-card p-0"
           >
-            {metrics.map((m) => (
+            {availableMetrics.map((m) => (
               <ToggleGroupItem
                 key={m}
                 value={m}
@@ -187,7 +202,7 @@ export function TrendAnalyzerView({ dealId }: { dealId: string }) {
         <div className="rounded border border-border border-l-4 border-l-accent bg-emerald-50/40 px-5 py-4 shadow-[0_1px_2px_0_rgb(0,0,0,0.04)]">
           <p className="atlas-label mb-2">Trend Insight</p>
           <p className="text-[13px] leading-relaxed text-foreground/80">
-            {dealInsights[metric]}
+            {dealInsights[safeMetric]}
           </p>
         </div>
 

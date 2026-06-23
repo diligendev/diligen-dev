@@ -4,7 +4,7 @@ import { Security } from "@/components/security"
 import { Capabilities } from "@/components/capabilities"
 import { Narrative } from "@/components/narrative"
 import { StatsBar } from "@/components/stats-bar"
-import { Testimonials } from "@/components/testimonials"
+import { Audience } from "@/components/audience"
 import { DemoCta } from "@/components/demo-cta"
 import { SiteFooter } from "@/components/site-footer"
 
@@ -18,7 +18,7 @@ export default function HomePage() {
         <StatsBar />
         <Narrative />
         <Security />
-        <Testimonials />
+        <Audience />
         <DemoCta />
       </main>
       <SiteFooter />

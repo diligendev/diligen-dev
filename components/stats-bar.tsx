@@ -1,7 +1,19 @@
-const stats = [
-  { value: "$890B+", label: "Capital deployed by firms on the platform", accent: true },
-  { value: "5+",     label: "Days saved per deal on average" },
-  { value: "1M+",    label: "Analyses & insights generated monthly" },
+const steps = [
+  {
+    n: "01",
+    title: "Bring the deal",
+    body: "Upload a CIM or paste the text. Add financials, documents, and call notes as the deal develops — or track a proprietary deal manually, no CIM required.",
+  },
+  {
+    n: "02",
+    title: "Get the first pass",
+    body: "Diligen returns a scored recommendation, the adjusted-EBITDA bridge, red flags, and the diligence questions that matter — cross-checked against the source.",
+  },
+  {
+    n: "03",
+    title: "Take it to committee",
+    body: "Tune the valuation, work the diligence checklist, and export an IC-ready memo. Every figure stays linked to where it came from.",
+  },
 ]
 
 export function StatsBar() {
@@ -19,42 +31,43 @@ export function StatsBar() {
         }}
       />
 
-      <div className="relative mx-auto max-w-6xl px-6 py-20">
+      <div className="relative mx-auto max-w-6xl px-6 py-24">
         {/* section label */}
-        <p
-          className="mb-10 text-[10px] font-bold uppercase tracking-[0.2em]"
-          style={{ color: "rgba(26,190,189,0.60)" }}
-        >
-          Platform Metrics
-        </p>
+        <div className="mb-12 flex flex-col gap-2">
+          <p
+            className="text-[10px] font-bold uppercase tracking-[0.2em]"
+            style={{ color: "rgba(26,190,189,0.60)" }}
+          >
+            How it works
+          </p>
+          <h2 className="text-balance text-3xl font-semibold leading-tight tracking-[-0.025em] text-foreground sm:text-4xl">
+            Three steps from inbox to investment committee.
+          </h2>
+        </div>
 
-        <div className="grid grid-cols-1 gap-px sm:grid-cols-3" style={{ background: "rgba(26,190,189,0.08)" }}>
-          {stats.map((s) => (
+        <div
+          className="grid grid-cols-1 gap-px sm:grid-cols-3"
+          style={{ background: "rgba(26,190,189,0.08)" }}
+        >
+          {steps.map((s) => (
             <div
-              key={s.value}
-              className="relative flex flex-col justify-between p-8"
-              style={{ background: s.accent ? "rgba(26,190,189,0.05)" : "#06101C" }}
+              key={s.n}
+              className="relative flex flex-col gap-5 p-8"
+              style={{ background: "#06101C" }}
             >
-              {/* top-left data node */}
-              <div
-                className="mb-6 h-px w-8"
-                style={{ background: s.accent ? "#1ABEBD" : "rgba(26,190,189,0.30)" }}
-              />
+              <span
+                className="font-mono text-[40px] font-semibold leading-none tabular-nums tracking-[-0.04em]"
+                style={{ color: "#C8A84B" }}
+              >
+                {s.n}
+              </span>
               <div>
+                <h3 className="text-[15px] font-semibold text-foreground">{s.title}</h3>
                 <p
-                  className="font-mono text-[64px] font-semibold leading-none tracking-[-0.04em]"
-                  style={{
-                    color: s.accent ? "#C8A84B" : "#EBF2FF",
-                    textShadow: s.accent ? "0 0 32px rgba(200,168,75,0.25)" : "none",
-                  }}
-                >
-                  {s.value}
-                </p>
-                <p
-                  className="mt-4 text-[13px] leading-relaxed"
+                  className="mt-3 text-[13px] leading-relaxed"
                   style={{ color: "rgba(235,242,255,0.45)" }}
                 >
-                  {s.label}
+                  {s.body}
                 </p>
               </div>
             </div>

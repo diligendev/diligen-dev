@@ -1,11 +1,12 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Printer, RotateCcw } from "lucide-react"
+import { FileText, Printer, RotateCcw } from "lucide-react"
 
 import {
   type ValuationInputs,
   computeValuation,
+  parseEbitdaToM,
   fmtM,
   fmtX,
   fmtPct,
@@ -28,15 +29,19 @@ const recTone: Record<string, string> = {
 export function DealMemoTab({
   deal,
   analysis,
+  hasSavedAnalysis,
   valuationInputs,
   kpiHistory,
   checklist,
+  onNavigate,
 }: {
   deal: Deal
   analysis: DealAnalysis
+  hasSavedAnalysis: boolean
   valuationInputs: ValuationInputs
   kpiHistory: KpiEntry[]
   checklist: ChecklistItem[]
+  onNavigate: (tab: string) => void
 }) {
   const valuation = useMemo(
     () => computeValuation(valuationInputs),
@@ -49,11 +54,41 @@ export function DealMemoTab({
   const variances = latestKpi?.kpis.filter((k) => k.cimValue) ?? []
   const openDiligence = checklist.filter((c) => c.status !== "Answered")
 
+  // Only show returns once the deal carries a real adjusted-EBITDA basis. A memo
+  // is a signed-looking artifact — it must never render an invented valuation.
+  const entryEbitdaM = parseEbitdaToM(analysis.metrics.adjustedEbitda)
+  const valuationReady = Number.isFinite(entryEbitdaM) && entryEbitdaM > 0
+
   const today = new Date().toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
   })
+
+  // No analysis → no memo. Don't assemble a confidential letterhead around
+  // placeholder figures.
+  if (!hasSavedAnalysis) {
+    return (
+      <div className="flex flex-col items-center gap-4 rounded border border-dashed border-border bg-card px-6 py-16 text-center">
+        <FileText className="size-6 text-muted-foreground" />
+        <div>
+          <p className="text-[15px] font-semibold text-foreground">No IC memo yet</p>
+          <p className="mx-auto mt-1 max-w-md text-[13px] leading-relaxed text-muted-foreground">
+            The memo is auto-assembled from the CIM analysis, valuation, and
+            diligence record. Run the CIM analysis first — then review the thesis
+            and print.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onNavigate("cim-analysis")}
+          className="inline-flex h-9 items-center gap-1.5 rounded-sm bg-accent px-4 text-[13px] font-medium text-accent-foreground transition-colors hover:bg-accent/90"
+        >
+          Go to CIM Analysis
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -148,17 +183,26 @@ export function DealMemoTab({
 
         {/* Valuation summary */}
         <Block title="Indicative Valuation & Returns (Base Case)">
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded border border-border bg-border sm:grid-cols-4">
-            <MemoMetric label="Enterprise Value" value={`${fmtM(valuation.entryEv)} · ${fmtX(valuationInputs.entryMultiple)}`} />
-            <MemoMetric label="Equity Check" value={fmtM(valuation.entryEquity)} />
-            <MemoMetric label="MOIC" value={Number.isFinite(valuation.moic) ? `${valuation.moic.toFixed(2)}x` : "—"} />
-            <MemoMetric label="Gross IRR" value={fmtPct(valuation.irr)} />
-          </div>
-          <p className="mt-2 text-[11px] italic leading-relaxed text-muted-foreground">
-            Illustrative single-hold LBO at {fmtX(valuationInputs.entryMultiple)} entry,{" "}
-            {fmtPct(valuationInputs.debtPct)} leverage, {valuationInputs.holdYears}-year hold.
-            Mirrors the current assumptions on the Valuation tab.
-          </p>
+          {valuationReady ? (
+            <>
+              <div className="grid grid-cols-2 gap-px overflow-hidden rounded border border-border bg-border sm:grid-cols-4">
+                <MemoMetric label="Enterprise Value" value={`${fmtM(valuation.entryEv)} · ${fmtX(valuationInputs.entryMultiple)}`} />
+                <MemoMetric label="Equity Check" value={fmtM(valuation.entryEquity)} />
+                <MemoMetric label="MOIC" value={Number.isFinite(valuation.moic) ? `${valuation.moic.toFixed(2)}x` : "—"} />
+                <MemoMetric label="Gross IRR" value={fmtPct(valuation.irr)} />
+              </div>
+              <p className="mt-2 text-[11px] italic leading-relaxed text-muted-foreground">
+                Illustrative single-hold LBO at {fmtX(valuationInputs.entryMultiple)} entry,{" "}
+                {fmtPct(valuationInputs.debtPct)} leverage, {valuationInputs.holdYears}-year hold.
+                Mirrors the current assumptions on the Valuation tab.
+              </p>
+            </>
+          ) : (
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              Set the entry EBITDA on the Valuation tab to populate indicative
+              returns.
+            </p>
+          )}
         </Block>
 
         {/* Highlights */}

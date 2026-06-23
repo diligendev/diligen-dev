@@ -29,9 +29,9 @@ export function SiteFooter() {
               AI-powered platform built for institutional precision.
             </p>
 
-            {/* email capture — Keye's "Want to stay in the loop?" */}
+            {/* email capture */}
             <div className="mt-8">
-              <p className="mb-3 text-sm text-foreground">Want to stay in the loop?</p>
+              <p className="mb-3 text-sm text-foreground">Get occasional product updates</p>
               {submitted ? (
                 <p className="text-sm text-muted-foreground">You&apos;re subscribed.</p>
               ) : (

@@ -34,11 +34,12 @@ export function DemoCta() {
             Get Started
           </p>
           <h2 className="relative max-w-xl text-[38px] font-bold leading-[1.08] tracking-[-0.025em] text-white sm:text-[50px]">
-            See What Diligen Can Do with Your Deal Data
+            See it on one of your own deals.
           </h2>
           <p className="relative mt-5 max-w-lg text-base leading-relaxed text-white/60">
-            From raw files to real insights, Diligen automates the heavy lift so your team
-            moves faster, thinks sharper, and makes better calls with less risk.
+            Bring a real CIM to a live session and we&apos;ll walk through the first-pass
+            analysis, the valuation, and the IC memo Diligen produces from it — on your
+            deal, not a canned demo.
           </p>
 
           {submitted ? (

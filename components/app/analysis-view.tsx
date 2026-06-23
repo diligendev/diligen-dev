@@ -51,7 +51,12 @@ export function AnalysisView() {
         {/* Reuse the complete Analysis Builder feature set, scoped to the
             selected deal. The key forces a clean remount when the deal changes
             so list / workspace state resets to the new deal's context. */}
-        <DealAnalysesTab key={deal.id} deal={deal} documents={documents} />
+        <DealAnalysesTab
+          key={deal.id}
+          deal={deal}
+          documents={documents}
+          showSearch={false}
+        />
       </div>
     </div>
   )

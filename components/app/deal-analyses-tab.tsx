@@ -99,9 +99,13 @@ function isSpreadsheet(fileName: string): boolean {
 export function DealAnalysesTab({
   deal,
   documents,
+  showSearch = true,
 }: {
   deal: Deal
   documents: DealDocument[]
+  /** Hide the in-list search box where an outer control already scopes the view
+   *  (e.g. the global Revenue Explorer page, which has a deal selector). */
+  showSearch?: boolean
 }) {
   const [mode, setMode] = useState<Mode>({ kind: "list" })
   const [analyses, setAnalyses] = useState<AnalysisRecord[]>(() =>
@@ -154,7 +158,7 @@ export function DealAnalysesTab({
     const id = nextAnalysisId()
     const rec: AnalysisRecord = {
       id,
-      name: config.name.trim() || "Untitled Analysis",
+      name: config.name.trim() || "Untitled Exploration",
       dealId: deal.id,
       dealName: deal.company,
       docCount: config.docCount,
@@ -165,7 +169,7 @@ export function DealAnalysesTab({
       grain: config.grain,
     }
     setAnalyses((prev) => [rec, ...prev])
-    toast.success(`Analysis created: ${rec.name}`)
+    toast.success(`Exploration created: ${rec.name}`)
     setMode({ kind: "workspace", analysisId: id })
   }
 
@@ -228,16 +232,23 @@ export function DealAnalysesTab({
   // ---- LIST VIEW ----
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative w-full max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search analyses…"
-            className="h-8 rounded-sm pl-8 text-[13px] focus-visible:ring-accent"
-          />
-        </div>
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-3",
+          showSearch ? "justify-between" : "justify-end",
+        )}
+      >
+        {showSearch && (
+          <div className="relative w-full max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search explorations…"
+              className="h-8 rounded-sm pl-8 text-[13px] focus-visible:ring-accent"
+            />
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <Popover>
             <PopoverTrigger
@@ -336,9 +347,9 @@ export function DealAnalysesTab({
         <div className="rounded border border-dashed border-border bg-card px-5 py-16 text-center">
           {analyses.length === 0 ? (
             <>
-              <p className="text-[13px] font-medium text-foreground">No analyses yet</p>
+              <p className="text-[13px] font-medium text-foreground">No explorations yet</p>
               <p className="mt-1 text-[12px] text-muted-foreground">
-                Build a structured multi-view analysis from this deal&apos;s revenue data file.
+                Build a structured, multi-view exploration from this deal&apos;s revenue data file.
               </p>
               <Button
                 size="sm"
@@ -346,14 +357,14 @@ export function DealAnalysesTab({
                 className="mt-4 h-8 rounded-sm bg-accent px-3 text-[13px] text-accent-foreground hover:bg-accent/90"
               >
                 <Plus data-icon="inline-start" />
-                Create Analysis
+                Create exploration
               </Button>
             </>
           ) : (
             <>
-              <p className="text-[13px] font-medium text-foreground">No matching analyses</p>
+              <p className="text-[13px] font-medium text-foreground">No matching explorations</p>
               <p className="mt-1 text-[12px] text-muted-foreground">
-                No analyses match your search or status filters. Adjust them to see more.
+                No explorations match your search or status filters. Adjust them to see more.
               </p>
             </>
           )}
@@ -428,7 +439,7 @@ export function DealAnalysesTab({
             <thead>
               <tr className="border-b border-border bg-secondary/50">
                 <th className="px-4 py-2.5 text-left atlas-label">Status</th>
-                <th className="px-4 py-2.5 text-left atlas-label">Project Name</th>
+                <th className="px-4 py-2.5 text-left atlas-label">Exploration</th>
                 <th className="px-4 py-2.5 text-left atlas-label">Docs Selected</th>
                 <th className="px-4 py-2.5 text-left atlas-label">Created By</th>
                 <th className="w-10 px-4 py-2.5" />
@@ -706,7 +717,7 @@ function CreateFlow({
     }
   }
 
-  const primaryLabel = step === totalSteps ? "Create analysis" : "Continue"
+  const primaryLabel = step === totalSteps ? "Create exploration" : "Continue"
   const stepLabel = step === 1 ? "Upload" : step === 2 ? "Map columns" : "Review"
 
   return (
@@ -1019,7 +1030,7 @@ function CreateFlow({
                 Review &amp; create
               </h3>
               <p className="mt-1 text-[12px] text-muted-foreground">
-                Confirm what was parsed, then name the analysis.
+                Confirm what was parsed, then name the exploration.
               </p>
             </div>
 
@@ -1054,7 +1065,7 @@ function CreateFlow({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <span className="atlas-label">Analysis name</span>
+              <span className="atlas-label">Exploration name</span>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -1077,7 +1088,7 @@ function CreateFlow({
 
 function suggestName(fileName: string): string {
   const base = fileName.replace(/\.[^.]+$/, "").trim()
-  return base || "Revenue Analysis"
+  return base || "Revenue Exploration"
 }
 
 function RequirementCard({
@@ -1302,7 +1313,7 @@ function AnalysisWorkspace({
             className="inline-flex items-center gap-1 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" />
-            Analyses
+            Explorations
           </button>
           <button
             type="button"

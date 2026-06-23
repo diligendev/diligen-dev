@@ -148,16 +148,15 @@ export function Hero() {
             className="text-balance font-bold leading-[1.04] tracking-[-0.03em] text-white"
             style={{ fontSize: "clamp(44px, 6vw, 74px)" }}
           >
-            Diligence Faster.
+            From CIM to IC memo
             <br />
-            Decide with{" "}
             <span
               style={{
                 color: "#1ABEBD",
                 textShadow: "0 0 40px rgba(26,190,189,0.35)",
               }}
             >
-              Conviction.
+              in an afternoon.
             </span>
           </h1>
 
@@ -172,9 +171,10 @@ export function Hero() {
             className="max-w-[460px] text-[15px] leading-[1.75]"
             style={{ color: "rgba(235,242,255,0.58)" }}
           >
-            Diligen transforms raw deal files into structured, investor-ready intelligence —
-            automating data cuts, running real math, and surfacing what matters in
-            minutes, not days.
+            Diligen reads the CIM and builds the first pass — a scored recommendation,
+            the adjusted-EBITDA bridge, red flags, and the diligence questions that
+            matter — then assembles the memo you take to committee. Built for teams
+            screening more deals than they can staff.
           </p>
 
           {/* CTAs */}
@@ -204,9 +204,9 @@ export function Hero() {
             style={{ borderColor: "rgba(26,190,189,0.12)" }}
           >
             {[
-              { value: "$890B+", label: "AUM on platform" },
-              { value: "5+ days", label: "saved per deal" },
-              { value: "LMM · PE", label: "institutional grade" },
+              { value: "Minutes", label: "to a first-pass read" },
+              { value: "Source-linked", label: "every figure traces back" },
+              { value: "LMM-built", label: "$5–100M EBITDA deals" },
             ].map((s) => (
               <div key={s.value} className="flex flex-col gap-0.5">
                 <span

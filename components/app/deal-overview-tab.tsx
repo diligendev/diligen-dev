@@ -52,7 +52,7 @@ export function DealOverviewTab({
             </p>
             <button
               type="button"
-              onClick={() => onNavigate("analysis")}
+              onClick={() => onNavigate("cim-analysis")}
               className="inline-flex h-9 items-center gap-1.5 rounded-sm bg-accent px-4 text-[13px] font-medium text-accent-foreground transition-colors hover:bg-accent/90"
             >
               Go to CIM Analysis
@@ -82,7 +82,7 @@ export function DealOverviewTab({
             </div>
             <button
               type="button"
-              onClick={() => onNavigate("analysis")}
+              onClick={() => onNavigate("cim-analysis")}
               className="text-[12px] font-medium text-accent transition-colors hover:text-accent/80"
             >
               or paste CIM text to run an analysis
@@ -158,28 +158,28 @@ export function DealOverviewTab({
           label="Revenue"
           value={analysis.metrics.revenue}
           tone="default"
-          onClick={() => onNavigate("analysis")}
+          onClick={() => onNavigate("cim-analysis")}
         />
         <OverviewTile
           icon={CircleDollarSign}
           label="Adj. EBITDA"
           value={analysis.metrics.adjustedEbitda}
           tone="default"
-          onClick={() => onNavigate("analysis")}
+          onClick={() => onNavigate("cim-analysis")}
         />
         <OverviewTile
           icon={Percent}
           label="EBITDA Margin"
           value={analysis.metrics.ebitdaMargin}
           tone="default"
-          onClick={() => onNavigate("analysis")}
+          onClick={() => onNavigate("cim-analysis")}
         />
         <OverviewTile
           icon={AlertTriangle}
           label="Red Flags"
           value={String(analysis.metrics.redFlags)}
           tone={analysis.metrics.redFlags > 0 ? "amber" : "default"}
-          onClick={() => onNavigate("analysis")}
+          onClick={() => onNavigate("cim-analysis")}
         />
       </div>
 
@@ -202,7 +202,7 @@ export function DealOverviewTab({
             <p className="atlas-label">Key Risks</p>
             <button
               type="button"
-              onClick={() => onNavigate("analysis")}
+              onClick={() => onNavigate("cim-analysis")}
               className="inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent/80"
             >
               View all
@@ -236,7 +236,7 @@ export function DealOverviewTab({
           <p className="atlas-label">Key Diligence Questions</p>
           <button
             type="button"
-            onClick={() => onNavigate("analysis")}
+            onClick={() => onNavigate("cim-analysis")}
             className="inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent/80"
           >
             View analysis

@@ -8,7 +8,7 @@ import { toast } from "sonner"
 
 import { PageHeader } from "@/components/app/page-header"
 import { Button } from "@/components/ui/button"
-import { ScoreBadge } from "@/components/app/score-badge"
+import { ScoreBreakdown } from "@/components/app/score-breakdown"
 import {
   Select,
   SelectContent,
@@ -40,16 +40,18 @@ import { cn } from "@/lib/utils"
 import type { AnalysisMetadata } from "@/lib/data/deals"
 import { type ValuationInputs, defaultValuationInputs } from "@/lib/valuation"
 
+// Ordered to follow the deal lifecycle: you start at the data room, analyze the
+// CIM, work calls, run diligence, then build the financials → valuation → memo.
 const TABS = [
   { id: "overview", label: "Overview" },
-  { id: "analysis", label: "CIM Analysis" },
+  { id: "documents", label: "Documents" },
+  { id: "cim-analysis", label: "CIM Analysis" },
   { id: "calls", label: "Call Notes" },
-  { id: "analyses", label: "Revenue Explorer" },
+  { id: "diligence", label: "Diligence" },
   { id: "financials", label: "Financials" },
   { id: "valuation", label: "Valuation" },
   { id: "memo", label: "IC Memo" },
-  { id: "documents", label: "Documents" },
-  { id: "diligence", label: "Diligence" },
+  { id: "revenue-explorer", label: "Revenue Explorer" },
   { id: "notes", label: "Notes" },
 ] as const
 
@@ -138,8 +140,15 @@ export function DealDetailHub({
         </Button>
         <Button
           size="sm"
+          disabled={!hasSavedAnalysis}
+          title={
+            hasSavedAnalysis
+              ? undefined
+              : "Run the CIM analysis to assemble the IC memo"
+          }
           className="h-7 rounded bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
           onClick={() => {
+            if (!hasSavedAnalysis) return
             selectTab("memo")
             toast.info("Opening the IC memo — review the thesis, then click Print / Save PDF.")
           }}
@@ -188,7 +197,9 @@ export function DealDetailHub({
                   ))}
                 </SelectContent>
               </Select>
-              {deal.score != null && <ScoreBadge score={deal.score} size="lg" />}
+              {deal.score != null && (
+                <ScoreBreakdown score={deal.score} subScores={analysis.subScores} />
+              )}
             </div>
           </div>
 
@@ -244,8 +255,8 @@ export function DealDetailHub({
               />
             </div>
           )}
-          {visited.has("analysis") && (
-            <div hidden={tab !== "analysis"}>
+          {visited.has("cim-analysis") && (
+            <div hidden={tab !== "cim-analysis"}>
               <DealCimAnalysisTab
                 dealId={deal.id}
                 a={analysis}
@@ -264,8 +275,8 @@ export function DealDetailHub({
               />
             </div>
           )}
-          {visited.has("analyses") && (
-            <div hidden={tab !== "analyses"}>
+          {visited.has("revenue-explorer") && (
+            <div hidden={tab !== "revenue-explorer"}>
               <DealAnalysesTab deal={deal} documents={documents} />
             </div>
           )}
@@ -288,9 +299,11 @@ export function DealDetailHub({
               <DealMemoTab
                 deal={deal}
                 analysis={analysis}
+                hasSavedAnalysis={hasSavedAnalysis}
                 valuationInputs={valuationInputs}
                 kpiHistory={kpiHistory}
                 checklist={checklist}
+                onNavigate={selectTab}
               />
             </div>
           )}
