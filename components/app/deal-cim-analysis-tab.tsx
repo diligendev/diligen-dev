@@ -55,6 +55,7 @@ const ANALYSIS_STAGES = [
   "Identifying risks and red flags",
   "Saving analysis to workspace",
 ]
+const MAX_PDF_SIZE = 50 * 1024 * 1024
 
 type AnalysisPhase = "input" | "processing" | "success" | "error"
 
@@ -381,10 +382,10 @@ export function DealCimAnalysisTab({
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Replace current analysis?</DialogTitle>
+            <DialogTitle>Run updated analysis?</DialogTitle>
             <DialogDescription>
-              Running a new analysis overwrites the existing AI analysis for this
-              deal. This can&apos;t be undone.
+              This will analyze the active CIM again and make the new output the
+              latest saved analysis for this deal.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -400,7 +401,7 @@ export function DealCimAnalysisTab({
               onClick={confirmRerun}
               className="bg-accent text-accent-foreground hover:bg-accent/90"
             >
-              Replace analysis
+              Run analysis
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -610,6 +611,12 @@ function AnalysisRunner({
                     className="rounded-sm"
                     onChange={(event) => {
                       const file = event.target.files?.[0] ?? null
+                      if (file && file.size > MAX_PDF_SIZE) {
+                        toast.error("PDF must be 50MB or smaller.")
+                        event.target.value = ""
+                        setSelectedFile(null)
+                        return
+                      }
                       setSelectedFile(file)
                       if (file && !documentName.trim()) {
                         setDocumentName(file.name.replace(/\.pdf$/i, ""))

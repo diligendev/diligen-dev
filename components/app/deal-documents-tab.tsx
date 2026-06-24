@@ -43,6 +43,7 @@ import type { DealDocument } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 
 const DESCRIPTION_LIMIT = 300
+const MAX_PDF_SIZE = 50 * 1024 * 1024
 const documentTypes: DealDocument["type"][] = [
   "CIM",
   "Financials",
@@ -169,17 +170,25 @@ export function DealDocumentsTab({
   }
 
   const viewDocument = async (documentId: string) => {
+    const tab = window.open("about:blank", "_blank")
+    if (!tab) {
+      toast.error("Your browser blocked the document tab. Allow popups and try again.")
+      return
+    }
+    tab.opener = null
+
     setOpeningId(documentId)
     const response = await fetch(`/api/deals/${dealId}/documents/${documentId}/view`)
     const payload = await response.json().catch(() => ({}))
     setOpeningId(null)
 
     if (!response.ok || !payload.url) {
+      tab.close()
       toast.error(payload.error ?? "Could not open document")
       return
     }
 
-    window.open(payload.url, "_blank", "noopener,noreferrer")
+    tab.location.href = payload.url
   }
 
   const canDelete = (doc: DealDocument) =>
@@ -574,6 +583,10 @@ function UploadDocumentDialog({
     if (!file) return
     if (file.type !== "application/pdf") {
       toast.error("Only PDF uploads are supported right now.")
+      return
+    }
+    if (file.size > MAX_PDF_SIZE) {
+      toast.error("PDF must be 50MB or smaller.")
       return
     }
     setForm((current) => ({

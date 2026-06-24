@@ -33,6 +33,7 @@ const STAGES = [
   "Uploading CIM...",
   "Preparing analysis workspace...",
 ]
+const MAX_PDF_SIZE = 50 * 1024 * 1024
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -73,6 +74,10 @@ export function UploadDealDialog({
     if (!f) return
     if (f.type !== "application/pdf") {
       toast.error("Please upload a PDF file.")
+      return
+    }
+    if (f.size > MAX_PDF_SIZE) {
+      toast.error("PDF must be 50MB or smaller.")
       return
     }
     setFile(f)
@@ -131,9 +136,13 @@ export function UploadDealDialog({
     const uploadPayload = await uploadResponse.json().catch(() => ({}))
 
     if (!uploadResponse.ok) {
-      toast.error(uploadPayload.error ?? "Deal was created, but the CIM upload failed")
-      setSubmitting(false)
-      setProgress(0)
+      toast.error(uploadPayload.error ?? "Deal was created, but the CIM upload failed", {
+        description: "Continue to the deal and upload the CIM from the analysis tab.",
+      })
+      setOpen(false)
+      reset()
+      router.refresh()
+      router.push(`/deals/${payload.id}?tab=cim-analysis`)
       return
     }
 
