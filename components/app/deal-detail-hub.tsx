@@ -37,7 +37,7 @@ import {
 } from "@/lib/mock-data"
 import type { DealNote } from "@/lib/types/deal-note"
 import { cn } from "@/lib/utils"
-import type { AnalysisMetadata } from "@/lib/data/deals"
+import type { ActiveCimExtraction, AnalysisMetadata } from "@/lib/data/deals"
 import { type ValuationInputs, defaultValuationInputs } from "@/lib/valuation"
 
 // Ordered to follow the deal lifecycle: you start at the data room, analyze the
@@ -60,6 +60,7 @@ export function DealDetailHub({
   analysis,
   analysisMetadata,
   analysisOutdated,
+  activeCimExtraction,
   hasSavedAnalysis,
   checklist,
   documents,
@@ -70,6 +71,7 @@ export function DealDetailHub({
   analysis: DealAnalysis
   analysisMetadata: AnalysisMetadata | null
   analysisOutdated: boolean
+  activeCimExtraction: ActiveCimExtraction
   hasSavedAnalysis: boolean
   checklist: ChecklistItem[]
   documents: DealDocument[]
@@ -264,8 +266,8 @@ export function DealDetailHub({
                 dealId={deal.id}
                 a={analysis}
                 analysisOutdated={analysisOutdated}
+                activeCimExtraction={activeCimExtraction}
                 hasSavedAnalysis={hasSavedAnalysis}
-                uploadedCim={searchParams.get("source") === "upload"}
               />
             </div>
           )}

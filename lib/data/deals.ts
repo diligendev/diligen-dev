@@ -55,6 +55,17 @@ type DealNoteRow = {
   updated_at: string
 }
 
+type ActiveCimRow = {
+  id: string
+  extraction_status: string
+}
+
+type DocumentPageRow = {
+  page_number: number
+  text: string
+  quality_status: string
+}
+
 export type AnalysisMetadata = {
   createdAt: string
   createdBy: {
@@ -153,6 +164,7 @@ export async function getCurrentOrganizationDealDocuments(dealId: string) {
     uploadedAt: row.created_at,
     size: row.file_size ?? "",
     extracted: row.extraction_status === "complete",
+    extractionStatus: row.extraction_status as DealDocument["extractionStatus"],
   }))
 }
 
@@ -199,6 +211,116 @@ export async function getCurrentOrganizationCimAnalysis(dealId: string) {
       },
       model: data.model,
     } satisfies AnalysisMetadata,
+  }
+}
+
+export type ActiveCimExtraction = {
+  activeCimId: string | null
+  extractionStatus: string | null
+  pageCount: number
+  usablePageCount: number
+  textLength: number
+}
+
+function emptyActiveCimExtraction(): ActiveCimExtraction {
+  return {
+    activeCimId: null,
+    extractionStatus: null,
+    pageCount: 0,
+    usablePageCount: 0,
+    textLength: 0,
+  }
+}
+
+export async function getCurrentOrganizationActiveCimExtraction(
+  dealId: string,
+): Promise<ActiveCimExtraction> {
+  const context = await getCurrentUserContext()
+  if (!context || !hasWorkspace(context)) return emptyActiveCimExtraction()
+
+  const supabase = await createClient()
+  const { data: activeCim, error: activeCimError } = await supabase
+    .from("deal_documents")
+    .select("id,extraction_status")
+    .eq("organization_id", context.organization.id)
+    .eq("deal_id", dealId)
+    .eq("document_type", "CIM")
+    .eq("document_status", "active")
+    .maybeSingle<ActiveCimRow>()
+
+  if (activeCimError) throw new Error(activeCimError.message)
+  if (!activeCim) return emptyActiveCimExtraction()
+
+  const { data: pages, error: pagesError } = await supabase
+    .from("document_pages")
+    .select("page_number,text,quality_status")
+    .eq("organization_id", context.organization.id)
+    .eq("deal_id", dealId)
+    .eq("document_id", activeCim.id)
+    .order("page_number", { ascending: true })
+    .returns<DocumentPageRow[]>()
+
+  if (pagesError) throw new Error(pagesError.message)
+
+  const usablePages = (pages ?? []).filter((page) => page.text.trim().length > 0)
+
+  return {
+    activeCimId: activeCim.id,
+    extractionStatus: activeCim.extraction_status,
+    pageCount: pages?.length ?? 0,
+    usablePageCount: usablePages.length,
+    textLength: usablePages.reduce((total, page) => total + page.text.length, 0),
+  }
+}
+
+export async function getActiveCimExtractedText({
+  dealId,
+  organizationId,
+}: {
+  dealId: string
+  organizationId: string
+}) {
+  const supabase = await createClient()
+  const { data: activeCim, error: activeCimError } = await supabase
+    .from("deal_documents")
+    .select("id,extraction_status")
+    .eq("organization_id", organizationId)
+    .eq("deal_id", dealId)
+    .eq("document_type", "CIM")
+    .eq("document_status", "active")
+    .maybeSingle<ActiveCimRow>()
+
+  if (activeCimError) throw new Error(activeCimError.message)
+  if (!activeCim) throw new Error("No active CIM found for this deal.")
+  if (activeCim.extraction_status !== "complete") {
+    throw new Error("Extract the active CIM before running analysis.")
+  }
+
+  const { data: pages, error: pagesError } = await supabase
+    .from("document_pages")
+    .select("page_number,text,quality_status")
+    .eq("organization_id", organizationId)
+    .eq("deal_id", dealId)
+    .eq("document_id", activeCim.id)
+    .order("page_number", { ascending: true })
+    .returns<DocumentPageRow[]>()
+
+  if (pagesError) throw new Error(pagesError.message)
+
+  const documentText = (pages ?? [])
+    .filter((page) => page.text.trim().length > 0)
+    .map((page) => `[Page ${page.page_number}]\n${page.text.trim()}`)
+    .join("\n\n")
+    .trim()
+
+  if (documentText.length < 500) {
+    throw new Error("Extracted CIM text is too short to analyze.")
+  }
+
+  return {
+    activeCimId: activeCim.id,
+    documentText,
+    pageCount: pages?.length ?? 0,
   }
 }
 

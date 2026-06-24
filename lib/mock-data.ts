@@ -267,6 +267,7 @@ export type DealDocument = {
   uploadedAt?: string
   size: string
   extracted: boolean
+  extractionStatus?: "pending" | "processing" | "complete" | "failed"
 }
 
 const documentsByDeal: Record<string, DealDocument[]> = {

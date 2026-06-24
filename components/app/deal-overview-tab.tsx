@@ -65,31 +65,24 @@ export function DealOverviewTab({
           <>
             <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
               This deal was added manually, so there&apos;s no CIM to analyze yet.
-              Build it up from manual inputs — or paste CIM text to run an AI first pass.
+              Add the CIM to run an AI first pass, or upload supporting documents to keep the deal file organized.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
-                onClick={() => onNavigate("financials")}
+                onClick={() => onNavigate("cim-analysis")}
                 className="inline-flex h-9 items-center gap-1.5 rounded-sm bg-accent px-4 text-[13px] font-medium text-accent-foreground transition-colors hover:bg-accent/90"
               >
-                Add financials
+                Add CIM
               </button>
               <button
                 type="button"
-                onClick={() => onNavigate("valuation")}
+                onClick={() => onNavigate("documents")}
                 className="inline-flex h-9 items-center gap-1.5 rounded-sm border border-border bg-card px-4 text-[13px] font-medium text-foreground transition-colors hover:bg-secondary"
               >
-                Open valuation
+                Add documents
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => onNavigate("cim-analysis")}
-              className="text-[12px] font-medium text-accent transition-colors hover:text-accent/80"
-            >
-              or paste CIM text to run an analysis
-            </button>
           </>
         )}
       </div>

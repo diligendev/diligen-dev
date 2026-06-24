@@ -70,6 +70,8 @@ const typeChip: Record<DealDocument["type"], string> = {
 function statusLabel(doc: DealDocument) {
   if (doc.type !== "CIM") return "Stored"
   if (doc.documentStatus === "superseded") return "Superseded"
+  if (doc.extractionStatus === "processing") return "Extracting"
+  if (doc.extractionStatus === "failed") return "Extraction failed"
   if (doc.extracted) return "Extracted"
   return "Active CIM"
 }
@@ -77,6 +79,8 @@ function statusLabel(doc: DealDocument) {
 function statusClass(doc: DealDocument) {
   if (doc.type !== "CIM") return "text-slate-600"
   if (doc.documentStatus === "superseded") return "text-muted-foreground"
+  if (doc.extractionStatus === "processing") return "text-blue-700"
+  if (doc.extractionStatus === "failed") return "text-red-700"
   if (doc.extracted) return "text-emerald-700"
   return "text-blue-700"
 }
@@ -301,7 +305,9 @@ export function DealDocumentsTab({
                     statusClass(doc),
                   )}
                 >
-                  {doc.extracted ? (
+                  {doc.extractionStatus === "processing" ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : doc.extracted ? (
                     <CheckCircle2 className="size-3.5" />
                   ) : (
                     <Clock className="size-3.5" />

@@ -227,6 +227,7 @@ export async function POST(
       uploadDate: inserted.created_at.slice(0, 10),
       size: inserted.file_size ?? formatSize(file.size),
       extracted: inserted.extraction_status === "complete",
+      extractionStatus: inserted.extraction_status,
     },
   })
 }

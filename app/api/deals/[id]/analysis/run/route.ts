@@ -1,6 +1,7 @@
-import { NextResponse, type NextRequest } from "next/server"
+import { NextResponse } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { getActiveCimExtractedText } from "@/lib/data/deals"
 import { createClient } from "@/lib/supabase/server"
 
 const RECOMMENDATIONS = ["Recommend", "Pass", "Needs More Information"]
@@ -166,7 +167,7 @@ async function runAnthropicAnalysis(documentText: string) {
 }
 
 export async function POST(
-  request: NextRequest,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const context = await getCurrentUserContext()
@@ -177,17 +178,6 @@ export async function POST(
 
   if (!hasWorkspace(context)) {
     return NextResponse.json({ error: "Workspace required" }, { status: 403 })
-  }
-
-  const body = await request.json().catch(() => null)
-  const documentText =
-    typeof body?.documentText === "string" ? body.documentText.trim() : ""
-
-  if (documentText.length < 500) {
-    return NextResponse.json(
-      { error: "Paste at least 500 characters of CIM or deal text." },
-      { status: 400 },
-    )
   }
 
   const { id } = await params
@@ -202,6 +192,34 @@ export async function POST(
 
   if (!deal) {
     return NextResponse.json({ error: "Deal not found." }, { status: 404 })
+  }
+
+  let documentText = ""
+  try {
+    const extracted = await getActiveCimExtractedText({
+      dealId: id,
+      organizationId: context.organization.id,
+    })
+    documentText = extracted.documentText
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not load extracted CIM text.",
+      },
+      { status: 400 },
+    )
+  }
+
+  if (documentText.length < 500) {
+    return NextResponse.json(
+      {
+        error: "Extracted CIM text is too short to analyze.",
+      },
+      { status: 400 },
+    )
   }
 
   let analysis: unknown

@@ -11,6 +11,7 @@ import {
   Loader2,
   Sparkles,
   FileWarning,
+  Upload,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -25,10 +26,11 @@ import {
 } from "@/components/ui/dialog"
 import { Section } from "@/components/app/section"
 import { RedFlagItem } from "@/components/app/red-flag-item"
-import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import type { DealAnalysis } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
+import type { ActiveCimExtraction } from "@/lib/data/deals"
 
 const recConfig: Record<
   string,
@@ -46,11 +48,11 @@ const qualityConfig: Record<string, { bg: string; fg: string; ring: string }> = 
 }
 
 const ANALYSIS_STAGES = [
-  "Reading source material",
+  "Preparing active CIM",
+  "Extracting CIM text",
   "Extracting financial metrics",
   "Evaluating EBITDA adjustments",
   "Identifying risks and red flags",
-  "Preparing diligence questions",
   "Saving analysis to workspace",
 ]
 
@@ -60,17 +62,16 @@ export function DealCimAnalysisTab({
   dealId,
   a,
   analysisOutdated,
+  activeCimExtraction,
   hasSavedAnalysis,
-  uploadedCim,
 }: {
   dealId: string
   a: DealAnalysis
   analysisOutdated: boolean
+  activeCimExtraction: ActiveCimExtraction
   hasSavedAnalysis: boolean
-  uploadedCim: boolean
 }) {
   const router = useRouter()
-  const [documentText, setDocumentText] = useState("")
   const [phase, setPhase] = useState<AnalysisPhase>("input")
   const [stageIndex, setStageIndex] = useState(0)
   const [errorMessage, setErrorMessage] = useState("")
@@ -79,6 +80,7 @@ export function DealCimAnalysisTab({
   const running = phase === "processing"
   const rec = recConfig[a.recommendation] ?? recConfig["Needs More Information"]
   const quality = qualityConfig[a.ebitdaQuality] ?? qualityConfig["Moderate"]
+  const showAnalysisRunner = !hasSavedAnalysis || analysisOutdated || phase !== "input"
 
   useEffect(() => {
     if (!running) return
@@ -100,32 +102,84 @@ export function DealCimAnalysisTab({
     }
   }, [running])
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  function handleActiveCimAnalysis() {
     if (running) return
     if (hasSavedAnalysis) {
       setConfirmOpen(true)
       return
     }
-    void runAnalysis()
+    void runActiveCimWorkflow()
   }
 
   const confirmRerun = () => {
     setConfirmOpen(false)
-    void runAnalysis()
+    void runActiveCimWorkflow()
   }
 
-  async function runAnalysis() {
+  async function handleUploadCim(file: File, name: string) {
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("documentType", "CIM")
+    formData.append("name", name || file.name)
+
+    const response = await fetch(`/api/deals/${dealId}/documents`, {
+      method: "POST",
+      body: formData,
+    })
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      const message = payload.error ?? "Could not upload CIM"
+      toast.error(message)
+      throw new Error(message)
+    }
+
+    toast.success("CIM uploaded")
+    router.refresh()
+  }
+
+  async function runActiveCimWorkflow() {
     setErrorMessage("")
     setStageIndex(0)
     setPhase("processing")
+
+    const activeCimId = activeCimExtraction.activeCimId
+    if (!activeCimId) {
+      const message = "Upload a CIM before running analysis."
+      setErrorMessage(message)
+      setPhase("error")
+      toast.error(message)
+      return
+    }
+
+    const needsExtraction =
+      activeCimExtraction.extractionStatus !== "complete" ||
+      activeCimExtraction.textLength < 500
+
+    if (needsExtraction) {
+      const extractResponse = await fetch(
+        `/api/deals/${dealId}/documents/${activeCimId}/extract`,
+        { method: "POST" },
+      )
+      const extractPayload = await extractResponse.json().catch(() => ({}))
+
+      if (!extractResponse.ok) {
+        const message = extractPayload.error ?? "Could not extract CIM text"
+        setErrorMessage(message)
+        setPhase("error")
+        toast.error(message)
+        return
+      }
+
+      setStageIndex(1)
+    }
 
     const response = await fetch(`/api/deals/${dealId}/analysis/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ documentText }),
+      body: JSON.stringify({ source: "active_cim" }),
     })
     const payload = await response.json().catch(() => ({}))
 
@@ -140,7 +194,6 @@ export function DealCimAnalysisTab({
     setStageIndex(ANALYSIS_STAGES.length - 1)
     setPhase("success")
     toast.success("Analysis complete")
-    setDocumentText("")
     router.refresh()
     window.setTimeout(() => {
       resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -161,17 +214,18 @@ export function DealCimAnalysisTab({
         </div>
       )}
 
-      <AnalysisRunner
-        documentText={documentText}
-        errorMessage={errorMessage}
-        hasSavedAnalysis={hasSavedAnalysis}
-        onChange={setDocumentText}
-        onRetry={() => setPhase("input")}
-        onSubmit={handleSubmit}
-        phase={phase}
-        stageIndex={stageIndex}
-        uploadedCim={uploadedCim}
-      />
+      {showAnalysisRunner && (
+        <AnalysisRunner
+          errorMessage={errorMessage}
+          activeCimExtraction={activeCimExtraction}
+          hasSavedAnalysis={hasSavedAnalysis}
+          onUploadCim={handleUploadCim}
+          onRetry={() => setPhase("input")}
+          onRunActiveCim={handleActiveCimAnalysis}
+          phase={phase}
+          stageIndex={stageIndex}
+        />
+      )}
 
       {hasSavedAnalysis && (
       <>
@@ -357,34 +411,63 @@ export function DealCimAnalysisTab({
 }
 
 function AnalysisRunner({
-  documentText,
   errorMessage,
+  activeCimExtraction,
   hasSavedAnalysis,
-  onChange,
+  onUploadCim,
   onRetry,
-  onSubmit,
+  onRunActiveCim,
   phase,
   stageIndex,
-  uploadedCim,
 }: {
-  documentText: string
   errorMessage: string
+  activeCimExtraction: ActiveCimExtraction
   hasSavedAnalysis: boolean
-  onChange: (value: string) => void
+  onUploadCim: (file: File, name: string) => Promise<void>
   onRetry: () => void
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
+  onRunActiveCim: () => void
   phase: AnalysisPhase
   stageIndex: number
-  uploadedCim: boolean
 }) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [documentName, setDocumentName] = useState("")
+  const [uploading, setUploading] = useState(false)
   const progress = Math.round(
     ((stageIndex + 1) / ANALYSIS_STAGES.length) * (phase === "success" ? 100 : 88),
   )
+  const canRunExtractedCim =
+    activeCimExtraction.extractionStatus === "complete" &&
+    activeCimExtraction.textLength >= 500
+  const hasActiveCim = activeCimExtraction.activeCimId != null
+
+  async function handleUploadSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedFile || uploading) return
+
+    setUploading(true)
+    try {
+      await onUploadCim(selectedFile, documentName.trim() || selectedFile.name)
+      setSelectedFile(null)
+      setDocumentName("")
+      const fileInput = event.currentTarget.elements.namedItem("cimFile")
+      if (fileInput instanceof HTMLInputElement) {
+        fileInput.value = ""
+      }
+    } finally {
+      setUploading(false)
+    }
+  }
 
   return (
     <Section
-      title={hasSavedAnalysis ? "Run Updated Analysis" : "Analyze CIM"}
-      description="One analysis flow for pasted text today and automatic PDF extraction when document processing is connected."
+      title={
+        phase === "success"
+          ? "Analysis Saved"
+          : hasSavedAnalysis
+            ? "Run Updated Analysis"
+            : "Analyze CIM"
+      }
+      description="Upload the active CIM, extract the PDF text, and save the AI analysis to this deal."
     >
       {phase === "processing" && (
         <div className="flex min-h-56 flex-col justify-center gap-5 py-3">
@@ -434,21 +517,18 @@ function AnalysisRunner({
       )}
 
       {phase === "success" && (
-        <div className="flex min-h-48 flex-col items-center justify-center gap-3 py-6 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
-            <CheckCircle2 className="size-6" />
+        <div className="flex flex-wrap items-center gap-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white text-emerald-700 ring-1 ring-emerald-200">
+            <CheckCircle2 className="size-4" />
           </span>
-          <div>
-            <p className="text-[15px] font-semibold text-foreground">
+          <div className="min-w-0 flex-1">
+            <p className="text-[12px] font-semibold text-emerald-900">
               Analysis complete
             </p>
-            <p className="mt-1 max-w-md text-[12px] leading-relaxed text-muted-foreground">
-              Structured output was saved to this deal. Results below are AI-generated and should be verified during diligence.
+            <p className="mt-0.5 text-[11px] leading-relaxed text-emerald-800">
+              Saved to this deal. AI-generated results should be verified during diligence.
             </p>
           </div>
-          <Button type="button" variant="outline" onClick={onRetry}>
-            Run another analysis
-          </Button>
         </div>
       )}
 
@@ -472,40 +552,108 @@ function AnalysisRunner({
       )}
 
       {phase === "input" && (
-        <form onSubmit={onSubmit} className="flex flex-col gap-3">
-          {uploadedCim && (
-            <div className="flex items-start gap-3 rounded border border-accent/30 bg-accent/5 px-3 py-2.5">
+        <div className="flex flex-col gap-4">
+          {hasActiveCim && (
+            <div className="flex flex-wrap items-start gap-3 rounded border border-accent/30 bg-accent/5 px-3 py-2.5">
               <FileSearch className="mt-0.5 size-4 shrink-0 text-accent" />
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-[12px] font-medium text-foreground">
-                  CIM attached to this deal
+                  Active CIM {canRunExtractedCim ? "is extracted" : "needs extraction"}
                 </p>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                  Automatic PDF extraction is not connected yet. Paste the PDF text below to run the same analysis pipeline now.
+                  {canRunExtractedCim
+                    ? `${activeCimExtraction.pageCount} pages extracted. Run analysis directly from the saved CIM text.`
+                    : "Text will be extracted from the active CIM before analysis starts."}
                 </p>
               </div>
+              <Button
+                type="button"
+                onClick={onRunActiveCim}
+                className="h-8 rounded-sm bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
+              >
+                <Sparkles data-icon="inline-start" />
+                {canRunExtractedCim
+                  ? hasSavedAnalysis
+                    ? "Run updated analysis"
+                    : "Analyze active CIM"
+                  : "Extract and analyze"}
+              </Button>
             </div>
           )}
-          <Textarea
-            value={documentText}
-            onChange={(event) => onChange(event.target.value)}
-            placeholder="Paste CIM text or deal notes here..."
-            className="min-h-56 resize-y rounded-sm text-[13px] leading-relaxed focus-visible:ring-accent"
-          />
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[11px] text-muted-foreground">
-              Minimum 500 characters. AI-generated output must be verified.
-            </p>
-            <Button
-              type="submit"
-              disabled={documentText.trim().length < 500}
-              className="rounded-sm bg-accent text-accent-foreground hover:bg-accent/90"
+
+          {!hasActiveCim && (
+            <form
+              onSubmit={handleUploadSubmit}
+              className="flex flex-col gap-3 rounded border border-dashed border-border bg-secondary/20 p-4"
             >
-              <Sparkles data-icon="inline-start" />
-              {hasSavedAnalysis ? "Run updated analysis" : "Run AI analysis"}
-            </Button>
-          </div>
-        </form>
+              <div className="flex items-start gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded bg-accent/10 text-accent">
+                  <Upload className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-semibold text-foreground">
+                    Upload CIM to start analysis
+                  </p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                    The PDF will be saved as this deal&apos;s active CIM and will also appear in Documents.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-[1fr_0.8fr]">
+                <label className="flex flex-col gap-1.5">
+                  <span className="atlas-label">PDF</span>
+                  <Input
+                    name="cimFile"
+                    type="file"
+                    accept="application/pdf"
+                    className="rounded-sm"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null
+                      setSelectedFile(file)
+                      if (file && !documentName.trim()) {
+                        setDocumentName(file.name.replace(/\.pdf$/i, ""))
+                      }
+                    }}
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="atlas-label">Document name</span>
+                  <Input
+                    value={documentName}
+                    onChange={(event) => setDocumentName(event.target.value)}
+                    placeholder="Meridian CIM"
+                    className="rounded-sm"
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[11px] text-muted-foreground">
+                  PDF only, 50MB max. Supporting documents can still be uploaded from Documents.
+                </p>
+                <Button
+                  type="submit"
+                  disabled={!selectedFile || uploading}
+                  className="rounded-sm bg-accent text-accent-foreground hover:bg-accent/90"
+                >
+                  {uploading ? (
+                    <Loader2 data-icon="inline-start" className="animate-spin" />
+                  ) : (
+                    <Upload data-icon="inline-start" />
+                  )}
+                  Upload CIM
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {hasActiveCim && !canRunExtractedCim && (
+            <div className="rounded border border-border bg-secondary/20 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+              Extraction happens before analysis, so the same PDF flow works whether the CIM was uploaded here, during deal creation, or from Documents.
+            </div>
+          )}
+        </div>
       )}
     </Section>
   )

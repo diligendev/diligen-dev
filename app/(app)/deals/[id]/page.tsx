@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 
 import { DealDetailHub } from "@/components/app/deal-detail-hub"
 import {
+  getCurrentOrganizationActiveCimExtraction,
   getCurrentOrganizationCimAnalysis,
   getCurrentOrganizationDeal,
   getCurrentOrganizationDealDocuments,
@@ -23,10 +24,11 @@ export default async function DealAnalysisPage({
   const { id } = await params
   const deal = (await getCurrentOrganizationDeal(id)) ?? getDeal(id)
   if (!deal) notFound()
-  const [dbDocuments, savedAnalysis, notes] = await Promise.all([
+  const [dbDocuments, savedAnalysis, notes, activeCimExtraction] = await Promise.all([
     getCurrentOrganizationDealDocuments(id),
     getCurrentOrganizationCimAnalysis(id),
     getCurrentOrganizationDealNotes(id),
+    getCurrentOrganizationActiveCimExtraction(id),
   ])
   const documents = dbDocuments.length > 0 ? dbDocuments : getDocuments(id)
   const activeCim = documents.find(
@@ -45,6 +47,7 @@ export default async function DealAnalysisPage({
       analysis={savedAnalysis?.analysis ?? getAnalysis(id)}
       analysisMetadata={savedAnalysis?.metadata ?? null}
       analysisOutdated={analysisOutdated}
+      activeCimExtraction={activeCimExtraction}
       hasSavedAnalysis={savedAnalysis != null}
       checklist={getChecklist(id)}
       documents={documents}
