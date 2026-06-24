@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowRight,
   CircleDollarSign,
+  FileWarning,
   Percent,
   type LucideIcon,
 } from "lucide-react"
@@ -21,6 +22,7 @@ export function DealOverviewTab({
   deal,
   analysis,
   analysisMetadata,
+  analysisOutdated,
   hasSavedAnalysis,
   checklist,
   documents,
@@ -30,6 +32,7 @@ export function DealOverviewTab({
   deal: Deal
   analysis: DealAnalysis
   analysisMetadata: AnalysisMetadata | null
+  analysisOutdated: boolean
   hasSavedAnalysis: boolean
   checklist: ChecklistItem[]
   documents: DealDocument[]
@@ -112,6 +115,25 @@ export function DealOverviewTab({
 
   return (
     <div className="flex flex-col gap-3">
+      {analysisOutdated && (
+        <div className="flex flex-wrap items-start gap-3 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+          <FileWarning className="mt-0.5 size-4 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold">New CIM uploaded after latest analysis</p>
+            <p className="mt-0.5 text-[12px] leading-relaxed text-amber-800">
+              The overview is still showing the previous analysis. Run an updated CIM analysis before relying on these outputs.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate("cim-analysis")}
+            className="inline-flex h-7 items-center rounded bg-amber-600 px-3 text-[12px] font-medium text-white transition-colors hover:bg-amber-700"
+          >
+            Run updated analysis
+          </button>
+        </div>
+      )}
+
       <div className="rounded border border-border bg-card p-5 shadow-[0_1px_3px_0_rgb(0,0,0,0.04)]">
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>

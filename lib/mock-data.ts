@@ -260,8 +260,11 @@ export const activityFeed: ActivityItem[] = [
 export type DealDocument = {
   id: string
   name: string
+  description?: string | null
   type: "CIM" | "Financials" | "Call Notes" | "Data Request" | "Other"
+  documentStatus?: "active" | "superseded" | "stored"
   uploadDate: string
+  uploadedAt?: string
   size: string
   extracted: boolean
 }

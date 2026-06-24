@@ -3,7 +3,7 @@
 import type React from "react"
 import { useCallback, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Upload, FileText, X, Loader2 } from "lucide-react"
+import { FileText, Loader2, Upload, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -29,9 +29,9 @@ import { sectors } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 
 const STAGES = [
-  "Extracting document…",
-  "Analyzing financials…",
-  "Generating report…",
+  "Creating deal...",
+  "Uploading CIM...",
+  "Preparing analysis workspace...",
 ]
 
 function formatSize(bytes: number) {
@@ -94,7 +94,7 @@ export function UploadDealDialog({
     setStage(0)
     setProgress(8)
 
-    const response = await fetch("/api/deals", {
+    const dealResponse = await fetch("/api/deals", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -103,25 +103,41 @@ export function UploadDealDialog({
         name: company,
         sector,
         source: "Upload",
-        stage: "Analyzing",
-        status: "Processing",
-        hasCim: true,
-        document: {
-          name: file.name,
-          documentType: "CIM",
-          fileSize: formatSize(file.size),
-        },
+        stage: "New",
+        status: "Complete",
+        hasCim: false,
       }),
     })
-    const payload = await response.json().catch(() => ({}))
+    const payload = await dealResponse.json().catch(() => ({}))
 
-    if (!response.ok) {
-      toast.error(payload.error ?? "Could not upload deal")
+    if (!dealResponse.ok || !payload.id) {
+      toast.error(payload.error ?? "Could not create deal")
       setSubmitting(false)
       setProgress(0)
       return
     }
 
+    setStage(1)
+    setProgress(42)
+
+    const uploadForm = new FormData()
+    uploadForm.set("file", file)
+    uploadForm.set("documentType", "CIM")
+
+    const uploadResponse = await fetch(`/api/deals/${payload.id}/documents`, {
+      method: "POST",
+      body: uploadForm,
+    })
+    const uploadPayload = await uploadResponse.json().catch(() => ({}))
+
+    if (!uploadResponse.ok) {
+      toast.error(uploadPayload.error ?? "Deal was created, but the CIM upload failed")
+      setSubmitting(false)
+      setProgress(0)
+      return
+    }
+
+    setStage(2)
     setProgress(100)
     toast.success(`Deal created: ${company}`, {
       description: "CIM attached. Continue in the analysis workspace.",
@@ -129,9 +145,7 @@ export function UploadDealDialog({
     setOpen(false)
     reset()
     router.refresh()
-    if (payload.id) {
-      router.push(`/deals/${payload.id}?tab=analysis&source=upload`)
-    }
+    router.push(`/deals/${payload.id}?tab=cim-analysis&source=upload`)
   }
 
   return (
@@ -150,8 +164,8 @@ export function UploadDealDialog({
         <DialogHeader>
           <DialogTitle>Upload CIM</DialogTitle>
           <DialogDescription>
-            Upload a confidential information memorandum to generate a deal
-            analysis.
+            Upload a confidential information memorandum to create a deal and
+            prepare it for analysis.
           </DialogDescription>
         </DialogHeader>
 
@@ -267,10 +281,10 @@ export function UploadDealDialog({
               disabled={!canSubmit}
               className="w-full rounded-sm bg-accent text-accent-foreground hover:bg-accent/90"
             >
-              Analyze deal
+              Create deal & upload CIM
             </Button>
             <p className="text-center text-xs text-muted-foreground">
-              Typically takes 30&ndash;60 seconds
+              Analysis can be run from the CIM Analysis tab.
             </p>
           </form>
         )}

@@ -25,8 +25,11 @@ create table if not exists public.deal_documents (
   organization_id uuid not null references public.organizations(id) on delete cascade,
   deal_id uuid not null references public.deals(id) on delete cascade,
   name text not null,
+  description text check (description is null or char_length(description) <= 300),
   document_type text not null default 'Other'
     check (document_type in ('CIM', 'Financials', 'Call Notes', 'Data Request', 'Other')),
+  document_status text not null default 'stored'
+    check (document_status in ('active', 'superseded', 'stored')),
   file_size text,
   storage_path text,
   extraction_status text not null default 'pending'
@@ -91,6 +94,10 @@ on public.deal_documents
 for update
 using (public.is_org_member(organization_id))
 with check (public.is_org_member(organization_id));
+
+create unique index if not exists one_active_cim_per_deal
+on public.deal_documents (organization_id, deal_id)
+where document_type = 'CIM' and document_status = 'active';
 
 drop policy if exists "members can read analysis outputs" on public.analysis_outputs;
 create policy "members can read analysis outputs"

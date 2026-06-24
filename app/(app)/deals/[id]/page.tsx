@@ -28,15 +28,26 @@ export default async function DealAnalysisPage({
     getCurrentOrganizationCimAnalysis(id),
     getCurrentOrganizationDealNotes(id),
   ])
+  const documents = dbDocuments.length > 0 ? dbDocuments : getDocuments(id)
+  const activeCim = documents.find(
+    (document) =>
+      document.type === "CIM" &&
+      (document.documentStatus == null || document.documentStatus === "active"),
+  )
+  const analysisOutdated =
+    Boolean(savedAnalysis?.metadata?.createdAt && activeCim?.uploadedAt) &&
+    new Date(activeCim!.uploadedAt!).getTime() >
+      new Date(savedAnalysis!.metadata.createdAt).getTime()
 
   return (
     <DealDetailHub
       deal={deal}
       analysis={savedAnalysis?.analysis ?? getAnalysis(id)}
       analysisMetadata={savedAnalysis?.metadata ?? null}
+      analysisOutdated={analysisOutdated}
       hasSavedAnalysis={savedAnalysis != null}
       checklist={getChecklist(id)}
-      documents={dbDocuments.length > 0 ? dbDocuments : getDocuments(id)}
+      documents={documents}
       notes={notes}
       kpiHistory={getKpiHistory(id)}
     />

@@ -10,6 +10,7 @@ import {
   FileSearch,
   Loader2,
   Sparkles,
+  FileWarning,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -58,11 +59,13 @@ type AnalysisPhase = "input" | "processing" | "success" | "error"
 export function DealCimAnalysisTab({
   dealId,
   a,
+  analysisOutdated,
   hasSavedAnalysis,
   uploadedCim,
 }: {
   dealId: string
   a: DealAnalysis
+  analysisOutdated: boolean
   hasSavedAnalysis: boolean
   uploadedCim: boolean
 }) {
@@ -146,6 +149,18 @@ export function DealCimAnalysisTab({
 
   return (
     <div ref={resultRef} className="flex flex-col gap-3">
+      {analysisOutdated && (
+        <div className="flex items-start gap-3 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+          <FileWarning className="mt-0.5 size-4 shrink-0" />
+          <div>
+            <p className="text-[13px] font-semibold">Analysis may be outdated</p>
+            <p className="mt-0.5 text-[12px] leading-relaxed text-amber-800">
+              A newer active CIM was uploaded after the latest saved analysis. Run an updated analysis to refresh the overview and memo.
+            </p>
+          </div>
+        </div>
+      )}
+
       <AnalysisRunner
         documentText={documentText}
         errorMessage={errorMessage}

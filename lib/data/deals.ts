@@ -26,7 +26,9 @@ type DealRow = {
 type DealDocumentRow = {
   id: string
   name: string
+  description: string | null
   document_type: DealDocument["type"]
+  document_status: DealDocument["documentStatus"] | null
   file_size: string | null
   extraction_status: string
   created_at: string
@@ -131,7 +133,7 @@ export async function getCurrentOrganizationDealDocuments(dealId: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("deal_documents")
-    .select("id,name,document_type,file_size,extraction_status,created_at")
+    .select("id,name,description,document_type,document_status,file_size,extraction_status,created_at")
     .eq("organization_id", context.organization.id)
     .eq("deal_id", dealId)
     .order("created_at", { ascending: false })
@@ -144,8 +146,11 @@ export async function getCurrentOrganizationDealDocuments(dealId: string) {
   return (data ?? []).map((row): DealDocument => ({
     id: row.id,
     name: row.name,
+    description: row.description,
     type: row.document_type,
+    documentStatus: row.document_status ?? (row.document_type === "CIM" ? "active" : "stored"),
     uploadDate: row.created_at.slice(0, 10),
+    uploadedAt: row.created_at,
     size: row.file_size ?? "",
     extracted: row.extraction_status === "complete",
   }))

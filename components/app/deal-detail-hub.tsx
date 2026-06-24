@@ -59,6 +59,7 @@ export function DealDetailHub({
   deal,
   analysis,
   analysisMetadata,
+  analysisOutdated,
   hasSavedAnalysis,
   checklist,
   documents,
@@ -68,6 +69,7 @@ export function DealDetailHub({
   deal: Deal
   analysis: DealAnalysis
   analysisMetadata: AnalysisMetadata | null
+  analysisOutdated: boolean
   hasSavedAnalysis: boolean
   checklist: ChecklistItem[]
   documents: DealDocument[]
@@ -247,6 +249,7 @@ export function DealDetailHub({
                 deal={deal}
                 analysis={analysis}
                 analysisMetadata={analysisMetadata}
+                analysisOutdated={analysisOutdated}
                 hasSavedAnalysis={hasSavedAnalysis}
                 checklist={checklist}
                 documents={documents}
@@ -260,6 +263,7 @@ export function DealDetailHub({
               <DealCimAnalysisTab
                 dealId={deal.id}
                 a={analysis}
+                analysisOutdated={analysisOutdated}
                 hasSavedAnalysis={hasSavedAnalysis}
                 uploadedCim={searchParams.get("source") === "upload"}
               />
@@ -309,7 +313,7 @@ export function DealDetailHub({
           )}
           {visited.has("documents") && (
             <div hidden={tab !== "documents"}>
-              <DealDocumentsTab documents={documents} />
+              <DealDocumentsTab dealId={deal.id} documents={documents} />
             </div>
           )}
           {visited.has("diligence") && (
