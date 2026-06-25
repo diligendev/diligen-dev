@@ -37,7 +37,11 @@ import {
 } from "@/lib/mock-data"
 import type { DealNote } from "@/lib/types/deal-note"
 import { cn } from "@/lib/utils"
-import type { ActiveCimExtraction, AnalysisMetadata } from "@/lib/data/deals"
+import type {
+  ActiveCimExtraction,
+  AnalysisMetadata,
+  FinancialOutput,
+} from "@/lib/data/deals"
 import { type ValuationInputs, defaultValuationInputs } from "@/lib/valuation"
 
 // Ordered to follow the deal lifecycle: you start at the data room, analyze the
@@ -62,6 +66,8 @@ export function DealDetailHub({
   analysisOutdated,
   activeCimExtraction,
   hasSavedAnalysis,
+  financialOutput,
+  financialsOutdated,
   checklist,
   documents,
   notes,
@@ -73,6 +79,8 @@ export function DealDetailHub({
   analysisOutdated: boolean
   activeCimExtraction: ActiveCimExtraction
   hasSavedAnalysis: boolean
+  financialOutput: FinancialOutput | null
+  financialsOutdated: boolean
   checklist: ChecklistItem[]
   documents: DealDocument[]
   notes: DealNote[]
@@ -288,7 +296,13 @@ export function DealDetailHub({
           )}
           {visited.has("financials") && (
             <div hidden={tab !== "financials"}>
-              <FinancialWorkbook companyName={deal.company} />
+              <FinancialWorkbook
+                dealId={deal.id}
+                companyName={deal.company}
+                financialOutput={financialOutput}
+                financialsOutdated={financialsOutdated}
+                activeCimExtraction={activeCimExtraction}
+              />
             </div>
           )}
           {visited.has("valuation") && (

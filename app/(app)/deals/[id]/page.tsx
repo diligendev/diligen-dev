@@ -7,6 +7,7 @@ import {
   getCurrentOrganizationDeal,
   getCurrentOrganizationDealDocuments,
   getCurrentOrganizationDealNotes,
+  getCurrentOrganizationFinancialOutput,
 } from "@/lib/data/deals"
 import {
   getDeal,
@@ -24,11 +25,18 @@ export default async function DealAnalysisPage({
   const { id } = await params
   const deal = (await getCurrentOrganizationDeal(id)) ?? getDeal(id)
   if (!deal) notFound()
-  const [dbDocuments, savedAnalysis, notes, activeCimExtraction] = await Promise.all([
+  const [
+    dbDocuments,
+    savedAnalysis,
+    notes,
+    activeCimExtraction,
+    financialOutput,
+  ] = await Promise.all([
     getCurrentOrganizationDealDocuments(id),
     getCurrentOrganizationCimAnalysis(id),
     getCurrentOrganizationDealNotes(id),
     getCurrentOrganizationActiveCimExtraction(id),
+    getCurrentOrganizationFinancialOutput(id),
   ])
   const documents = dbDocuments.length > 0 ? dbDocuments : getDocuments(id)
   const activeCim = documents.find(
@@ -40,6 +48,10 @@ export default async function DealAnalysisPage({
     Boolean(savedAnalysis?.metadata?.createdAt && activeCim?.uploadedAt) &&
     new Date(activeCim!.uploadedAt!).getTime() >
       new Date(savedAnalysis!.metadata.createdAt).getTime()
+  const financialsOutdated =
+    Boolean(financialOutput?.createdAt && activeCim?.uploadedAt) &&
+    new Date(activeCim!.uploadedAt!).getTime() >
+      new Date(financialOutput!.createdAt).getTime()
 
   return (
     <DealDetailHub
@@ -49,6 +61,8 @@ export default async function DealAnalysisPage({
       analysisOutdated={analysisOutdated}
       activeCimExtraction={activeCimExtraction}
       hasSavedAnalysis={savedAnalysis != null}
+      financialOutput={financialOutput}
+      financialsOutdated={financialsOutdated}
       checklist={getChecklist(id)}
       documents={documents}
       notes={notes}

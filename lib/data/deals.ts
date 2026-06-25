@@ -66,6 +66,35 @@ type DocumentPageRow = {
   quality_status: string
 }
 
+type FinancialOutputRow = {
+  id: string
+  document_id: string | null
+  status: "processing" | "complete" | "failed"
+  is_active: boolean
+  model: string | null
+  prompt_version: string
+  schema_version: string
+  currency: string
+  scale: "actual" | "thousands" | "millions"
+  warnings: FinancialWarning[]
+  created_by: string | null
+  created_at: string
+}
+
+type FinancialLineItemRow = {
+  id: string
+  category: string
+  label: string
+  period_label: string
+  period_type: FinancialPeriodType | null
+  period_end_date: string | null
+  value: number | string | null
+  unit: FinancialScale
+  source_page: number | null
+  confidence: FinancialConfidence | null
+  verified: boolean
+}
+
 export type AnalysisMetadata = {
   createdAt: string
   createdBy: {
@@ -73,6 +102,54 @@ export type AnalysisMetadata = {
     name: string
   }
   model: string | null
+}
+
+export type FinancialScale = "actual" | "thousands" | "millions"
+export type FinancialPeriodType =
+  | "annual"
+  | "quarterly"
+  | "ttm"
+  | "ltm"
+  | "projection"
+export type FinancialConfidence = "high" | "medium" | "low"
+
+export type FinancialWarning = {
+  title: string
+  detail: string
+  severity?: "High" | "Medium" | "Low"
+}
+
+export type FinancialLineItem = {
+  id: string
+  category: string
+  label: string
+  periodLabel: string
+  periodType: FinancialPeriodType | null
+  periodEndDate: string | null
+  value: number | null
+  unit: FinancialScale
+  sourcePage: number | null
+  confidence: FinancialConfidence | null
+  verified: boolean
+}
+
+export type FinancialOutput = {
+  id: string
+  documentId: string | null
+  status: "processing" | "complete" | "failed"
+  isActive: boolean
+  model: string | null
+  promptVersion: string
+  schemaVersion: string
+  currency: string
+  scale: FinancialScale
+  warnings: FinancialWarning[]
+  createdAt: string
+  createdBy: {
+    id: string | null
+    name: string
+  }
+  lineItems: FinancialLineItem[]
 }
 
 function toDeal(row: DealRow): Deal {
@@ -211,6 +288,86 @@ export async function getCurrentOrganizationCimAnalysis(dealId: string) {
       },
       model: data.model,
     } satisfies AnalysisMetadata,
+  }
+}
+
+export async function getCurrentOrganizationFinancialOutput(
+  dealId: string,
+): Promise<FinancialOutput | null> {
+  const context = await getCurrentUserContext()
+  if (!context || !hasWorkspace(context)) return null
+
+  const supabase = await createClient()
+  const { data: output, error: outputError } = await supabase
+    .from("financial_outputs")
+    .select("id,document_id,status,is_active,model,prompt_version,schema_version,currency,scale,warnings,created_by,created_at")
+    .eq("organization_id", context.organization.id)
+    .eq("deal_id", dealId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<FinancialOutputRow>()
+
+  if (outputError) throw new Error(outputError.message)
+  if (!output) return null
+
+  const { data: lineItems, error: lineItemsError } = await supabase
+    .from("financial_line_items")
+    .select("id,category,label,period_label,period_type,period_end_date,value,unit,source_page,confidence,verified")
+    .eq("organization_id", context.organization.id)
+    .eq("deal_id", dealId)
+    .eq("financial_output_id", output.id)
+    .order("period_end_date", { ascending: true, nullsFirst: false })
+    .order("period_label", { ascending: true })
+    .returns<FinancialLineItemRow[]>()
+
+  if (lineItemsError) throw new Error(lineItemsError.message)
+
+  let creator: AnalysisCreatorRow | null = null
+  if (output.created_by) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id,full_name,email")
+      .eq("id", output.created_by)
+      .maybeSingle<AnalysisCreatorRow>()
+
+    creator = profile
+  }
+
+  return {
+    id: output.id,
+    documentId: output.document_id,
+    status: output.status,
+    isActive: output.is_active,
+    model: output.model,
+    promptVersion: output.prompt_version,
+    schemaVersion: output.schema_version,
+    currency: output.currency,
+    scale: output.scale,
+    warnings: output.warnings ?? [],
+    createdAt: output.created_at,
+    createdBy: {
+      id: creator?.id ?? output.created_by,
+      name: creator?.full_name ?? creator?.email ?? "Workspace member",
+    },
+    lineItems: (lineItems ?? []).map((item) => ({
+      id: item.id,
+      category: item.category,
+      label: item.label,
+      periodLabel: item.period_label,
+      periodType: item.period_type,
+      periodEndDate: item.period_end_date,
+      value:
+        item.value == null
+          ? null
+          : typeof item.value === "number"
+            ? item.value
+            : Number(item.value),
+      unit: item.unit,
+      sourcePage: item.source_page,
+      confidence: item.confidence,
+      verified: item.verified,
+    })),
   }
 }
 
