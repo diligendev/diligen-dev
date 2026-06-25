@@ -5,6 +5,7 @@ import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 export const runtime = "nodejs"
+export const maxDuration = 300
 
 const BUCKET = "deal-documents"
 

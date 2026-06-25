@@ -1,10 +1,11 @@
 "use client"
 
 import { type Dispatch, type SetStateAction, useMemo, useState } from "react"
-import { Download, Calculator, TrendingUp } from "lucide-react"
+import { Download, Calculator, FileSearch, TrendingUp } from "lucide-react"
 
 import {
   type ValuationInputs,
+  type ValuationFinancialBasis,
   computeValuation,
   sensitivity,
   fmtM,
@@ -17,15 +18,24 @@ export function ValuationWorkbench({
   companyName,
   inputs,
   onInputsChange,
+  financialBasis,
+  financialsOutdated,
 }: {
   companyName: string
   inputs: ValuationInputs
   onInputsChange: Dispatch<SetStateAction<ValuationInputs>>
+  financialBasis: ValuationFinancialBasis
+  financialsOutdated: boolean
 }) {
   const [sensMetric, setSensMetric] = useState<"irr" | "moic">("irr")
 
   const result = useMemo(() => computeValuation(inputs), [inputs])
   const sens = useMemo(() => sensitivity(inputs, sensMetric), [inputs, sensMetric])
+  const extractedEbitdaChanged =
+    financialBasis.ebitda != null &&
+    Math.abs(inputs.entryEbitda - financialBasis.ebitda.valueM) > 0.05
+  const hasFinancialBasis =
+    financialBasis.source === "financial_extraction" && financialBasis.ebitda != null
 
   const set = <K extends keyof ValuationInputs>(key: K, value: number) =>
     onInputsChange((prev) => ({ ...prev, [key]: value }))
@@ -92,8 +102,64 @@ export function ValuationWorkbench({
     URL.revokeObjectURL(url)
   }
 
+  if (!hasFinancialBasis) {
+    return (
+      <div className="overflow-hidden rounded border border-border bg-card shadow-[0_1px_3px_0_rgb(0,0,0,0.04)]">
+        <div className="flex items-start gap-3 px-5 py-5">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded border border-border bg-secondary">
+            <FileSearch className="size-4 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="atlas-label">Valuation</p>
+            <h3 className="mt-1 text-[16px] font-semibold text-foreground">
+              Run financial extraction first
+            </h3>
+            <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
+              The valuation model needs real extracted EBITDA from the active CIM.
+              Open Financials, extract the CIM financials, then come back here to
+              run the valuation calculator.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
+      <div className="overflow-hidden rounded border border-border bg-card shadow-[0_1px_3px_0_rgb(0,0,0,0.04)]">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
+          <div>
+            <p className="atlas-label">Valuation Basis</p>
+            <h3 className="mt-1 text-[15px] font-semibold text-foreground">
+              {financialBasis.source === "financial_extraction"
+                ? "Using extracted CIM financials"
+                : "Waiting for extracted financials"}
+            </h3>
+          </div>
+          {financialsOutdated && (
+            <span className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800">
+              Financials may be outdated
+            </span>
+          )}
+          {extractedEbitdaChanged && (
+            <button
+              type="button"
+              onClick={() => set("entryEbitda", financialBasis.ebitda!.valueM)}
+              className="rounded border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-secondary"
+            >
+              Use extracted EBITDA
+            </button>
+          )}
+        </div>
+        <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
+          <SourceMetric label="Revenue" item={financialBasis.revenue} />
+          <SourceMetric label="EBITDA Basis" item={financialBasis.ebitda} />
+          <SourceMetric label="Debt" item={financialBasis.debt} />
+          <SourceMetric label="Cash" item={financialBasis.cash} />
+        </div>
+      </div>
+
       {/* Headline result cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <ResultCard label="Enterprise Value" value={fmtM(result.entryEv)} sub={`${fmtX(inputs.entryMultiple)} entry`} accent />
@@ -273,9 +339,10 @@ export function ValuationWorkbench({
 
       <div className="flex items-center justify-between gap-3">
         <p className="max-w-2xl text-[11px] leading-relaxed text-muted-foreground">
-          Simplified single-hold LBO for screening. Returns assume a debt paydown via
-          annual FCF sweep and no interim distributions; IRR is gross of fees and
-          carry. Use a full model before committing capital.
+          Simplified single-hold LBO for screening. Entry EBITDA is prefilled
+          from extracted CIM financials when available; financing, growth, and
+          exit assumptions remain manual what-if inputs. Use a full model before
+          committing capital.
         </p>
         <button
           type="button"
@@ -348,6 +415,39 @@ function StatPill({ label, value, accent }: { label: string; value: string; acce
     <div className={cn("flex flex-col gap-0.5 rounded border border-border bg-card px-3 py-2.5", accent && "border-accent/40 bg-accent/5")}>
       <p className="atlas-label">{label}</p>
       <p className={cn("font-mono text-[15px] font-semibold tabular-nums", accent ? "text-accent" : "text-foreground")}>{value}</p>
+    </div>
+  )
+}
+
+function SourceMetric({
+  label,
+  item,
+}: {
+  label: string
+  item: ValuationFinancialBasis["revenue"]
+}) {
+  return (
+    <div className="bg-card px-4 py-3">
+      <p className="atlas-label">{label}</p>
+      {item ? (
+        <div className="mt-1.5 space-y-1">
+          <p className="font-mono text-[18px] font-semibold tabular-nums text-foreground">
+            {fmtM(item.valueM)}
+          </p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {item.periodLabel}
+            {item.sourcePage ? ` · p.${item.sourcePage}` : ""}
+            {item.confidence ? ` · ${item.confidence}` : ""}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-1.5 space-y-1">
+          <p className="font-mono text-[18px] font-semibold tabular-nums text-muted-foreground">
+            -
+          </p>
+          <p className="text-[11px] text-muted-foreground">Not extracted</p>
+        </div>
+      )}
     </div>
   )
 }

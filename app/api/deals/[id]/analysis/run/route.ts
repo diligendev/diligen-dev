@@ -4,6 +4,9 @@ import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
 import { getActiveCimExtractedText } from "@/lib/data/deals"
 import { createClient } from "@/lib/supabase/server"
 
+export const runtime = "nodejs"
+export const maxDuration = 300
+
 const RECOMMENDATIONS = ["Recommend", "Pass", "Needs More Information"]
 const EBITDA_QUALITY = ["High", "Moderate", "Low"]
 

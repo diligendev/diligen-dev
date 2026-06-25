@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, FileText } from "lucide-react"
@@ -42,7 +42,11 @@ import type {
   AnalysisMetadata,
   FinancialOutput,
 } from "@/lib/data/deals"
-import { type ValuationInputs, defaultValuationInputs } from "@/lib/valuation"
+import {
+  type ValuationInputs,
+  defaultValuationInputs,
+  deriveValuationFromFinancials,
+} from "@/lib/valuation"
 
 // Ordered to follow the deal lifecycle: you start at the data room, analyze the
 // CIM, work calls, run diligence, then build the financials → valuation → memo.
@@ -61,6 +65,7 @@ const TABS = [
 
 export function DealDetailHub({
   deal,
+  organizationName,
   analysis,
   analysisMetadata,
   analysisOutdated,
@@ -74,6 +79,7 @@ export function DealDetailHub({
   kpiHistory,
 }: {
   deal: Deal
+  organizationName: string
   analysis: DealAnalysis
   analysisMetadata: AnalysisMetadata | null
   analysisOutdated: boolean
@@ -103,8 +109,16 @@ export function DealDetailHub({
   }
   const [stage, setStage] = useState<DealStage>(deal.stage)
   const [diligenceAdditions, setDiligenceAdditions] = useState<ChecklistItem[]>([])
-  const [valuationInputs, setValuationInputs] = useState<ValuationInputs>(() =>
-    defaultValuationInputs(analysis),
+  const valuationDefaults = useMemo(
+    () =>
+      deriveValuationFromFinancials(
+        financialOutput,
+        defaultValuationInputs(),
+      ),
+    [financialOutput],
+  )
+  const [valuationInputs, setValuationInputs] = useState<ValuationInputs>(
+    valuationDefaults.inputs,
   )
   const addDiligenceItems = (additions: ChecklistItem[]) =>
     setDiligenceAdditions((prev) => {
@@ -311,6 +325,8 @@ export function DealDetailHub({
                 companyName={deal.company}
                 inputs={valuationInputs}
                 onInputsChange={setValuationInputs}
+                financialBasis={valuationDefaults.basis}
+                financialsOutdated={financialsOutdated}
               />
             </div>
           )}
@@ -318,11 +334,11 @@ export function DealDetailHub({
             <div hidden={tab !== "memo"}>
               <DealMemoTab
                 deal={deal}
+                organizationName={organizationName}
                 analysis={analysis}
                 hasSavedAnalysis={hasSavedAnalysis}
                 valuationInputs={valuationInputs}
-                kpiHistory={kpiHistory}
-                checklist={checklist}
+                financialBasis={valuationDefaults.basis}
                 onNavigate={selectTab}
               />
             </div>
