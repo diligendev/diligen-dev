@@ -969,7 +969,16 @@ export function getKpiHistory(dealId: string): KpiEntry[] {
 }
 
 // ── Trend analyzer ──────────────────────────────────────────────────
-export type TrendMetric = "revenue" | "margin" | "churn"
+// Base metrics are authored by hand below. Derived metrics (gross margin, EBITDA
+// growth) are computed from that history, and placeholder metrics (leverage) are
+// hand-set where derivation isn't possible — see buildDealTrend. The backend can
+// replace getTrendData wholesale; the component only reads the returned shape.
+type BaseTrendMetric = "revenue" | "margin" | "churn"
+export type TrendMetric =
+  | BaseTrendMetric
+  | "grossMargin"
+  | "ebitdaGrowth"
+  | "leverage"
 
 export type TrendPoint = {
   period: string
@@ -977,6 +986,7 @@ export type TrendPoint = {
   sector: number
 }
 
+type BaseTrendSeries = Record<BaseTrendMetric, TrendPoint[]>
 type TrendSeries = Record<TrendMetric, TrendPoint[]>
 
 export const trendMetricMeta: Record<
@@ -995,6 +1005,24 @@ export const trendMetricMeta: Record<
     format: (v) => `${v.toFixed(1)}%`,
     better: "up",
   },
+  grossMargin: {
+    label: "Gross Margin",
+    unit: "%",
+    format: (v) => `${v.toFixed(1)}%`,
+    better: "up",
+  },
+  ebitdaGrowth: {
+    label: "EBITDA Growth (YoY)",
+    unit: "%",
+    format: (v) => `${v.toFixed(1)}%`,
+    better: "up",
+  },
+  leverage: {
+    label: "Debt / EBITDA",
+    unit: "×",
+    format: (v) => `${v.toFixed(1)}×`,
+    better: "down",
+  },
   churn: {
     label: "Gross Revenue Churn",
     unit: "%",
@@ -1010,8 +1038,9 @@ function buildSeries(periods: string[], target: number[], sector: number[]): Tre
   return periods.map((period, i) => ({ period, target: target[i], sector: sector[i] }))
 }
 
-// Per-deal trend series — each deal gets its own realistic data
-const trendDataByDeal: Record<string, Record<"quarterly" | "annual", TrendSeries>> = {
+// Per-deal base trend series (hand-authored). Derived + placeholder metrics are
+// layered on in buildDealTrend below.
+const baseTrendDataByDeal: Record<string, Record<"quarterly" | "annual", BaseTrendSeries>> = {
   "meridian-logistics": {
     quarterly: {
       revenue: buildSeries(quarterPeriods, [24.1,23.4,22.0,21.2,20.4,19.1,18.2,17.4], [16.2,16.0,15.4,15.1,14.8,14.2,13.9,13.5]),
@@ -1086,7 +1115,7 @@ const trendDataByDeal: Record<string, Record<"quarterly" | "annual", TrendSeries
   },
 }
 
-const trendInsightsByDeal: Record<string, Record<TrendMetric, string>> = {
+const trendInsightsByDeal: Record<string, Partial<Record<TrendMetric, string>>> = {
   "meridian-logistics": {
     revenue: "Revenue growth is decelerating faster than the sector — the target has compressed from a ~8pt premium to a ~4pt premium over eight quarters. Consistent with the customer-concentration red flag and warrants a cohort-level review.",
     margin:  "EBITDA margin has inverted relative to the sector. The target traded at a premium through Q3 '24 but now sits ~50bps below peers, confirming the freight pass-through margin compression flagged in diligence.",
@@ -1119,7 +1148,7 @@ const trendInsightsByDeal: Record<string, Record<TrendMetric, string>> = {
   },
 }
 
-const fallbackTrendData: Record<"quarterly" | "annual", TrendSeries> = {
+const baseFallbackTrendData: Record<"quarterly" | "annual", BaseTrendSeries> = {
   quarterly: {
     revenue: buildSeries(quarterPeriods, [10,10,10,10,10,10,10,10], [10,10,10,10,10,10,10,10]),
     margin:  buildSeries(quarterPeriods, [20,20,20,20,20,20,20,20], [20,20,20,20,20,20,20,20]),
@@ -1132,16 +1161,162 @@ const fallbackTrendData: Record<"quarterly" | "annual", TrendSeries> = {
   },
 }
 
+function round1(value: number) {
+  return Math.round(value * 10) / 10
+}
+
+// Gross margin sits a plausible opex spread above EBITDA margin. The spread per
+// deal is a PLACEHOLDER (true opex isn't in the authored history); the trend
+// shape follows the real EBITDA-margin series.
+const grossMarginSpreadByDeal: Record<string, number> = {
+  "meridian-logistics": 12,
+  "northwind-software": 50,
+  "cedar-foods": 10,
+  "atlas-medtech": 13,
+  "vantage-retail": 22,
+  "summit-energy": 16,
+}
+const DEFAULT_GROSS_MARGIN_SPREAD = 15
+
+// PLACEHOLDER: Debt/EBITDA can't be derived from the authored margin/growth
+// history, so these are hand-set, financially plausible leverage paths per deal
+// (lower is better). Replace via the backend getTrendData — no frontend changes.
+const leveragePlaceholderByDeal: Record<
+  string,
+  Record<"quarterly" | "annual", { target: number[]; sector: number[] }>
+> = {
+  "meridian-logistics": {
+    quarterly: { target: [3.4,3.6,3.8,4.0,4.2,4.5,4.8,5.0], sector: [3.8,3.8,3.9,3.9,4.0,4.0,4.1,4.1] },
+    annual:    { target: [3.2,3.7,4.3,4.9],                  sector: [3.7,3.8,3.9,4.0] },
+  },
+  "northwind-software": {
+    quarterly: { target: [2.4,2.2,2.0,1.9,1.7,1.5,1.4,1.2], sector: [3.2,3.1,3.0,3.0,2.9,2.9,2.8,2.8] },
+    annual:    { target: [2.8,2.2,1.7,1.2],                  sector: [3.4,3.2,3.0,2.8] },
+  },
+  "cedar-foods": {
+    quarterly: { target: [3.6,3.8,4.1,4.4,4.6,4.8,5.0,5.2], sector: [3.9,3.9,4.0,4.0,4.1,4.1,4.2,4.2] },
+    annual:    { target: [3.4,4.0,4.6,5.2],                  sector: [3.8,3.9,4.0,4.1] },
+  },
+  "atlas-medtech": {
+    quarterly: { target: [2.8,2.7,2.5,2.4,2.3,2.2,2.1,2.0], sector: [3.5,3.5,3.4,3.4,3.3,3.3,3.2,3.2] },
+    annual:    { target: [3.2,2.8,2.4,2.0],                  sector: [3.6,3.5,3.4,3.2] },
+  },
+  "vantage-retail": {
+    quarterly: { target: [4.5,4.9,5.3,5.7,6.0,6.3,6.6,6.8], sector: [3.4,3.4,3.5,3.5,3.5,3.6,3.6,3.6] },
+    annual:    { target: [4.2,5.0,5.9,6.7],                  sector: [3.3,3.4,3.5,3.6] },
+  },
+  "summit-energy": {
+    quarterly: { target: [3.2,3.1,3.0,2.9,2.8,2.7,2.7,2.6], sector: [3.4,3.4,3.4,3.4,3.4,3.4,3.4,3.4] },
+    annual:    { target: [3.4,3.1,2.8,2.6],                  sector: [3.5,3.5,3.4,3.4] },
+  },
+}
+
+// Gross margin = EBITDA margin + a per-deal opex spread (shape from real margin).
+function deriveGrossMargin(margin: TrendPoint[], spread: number): TrendPoint[] {
+  return margin.map((point) => ({
+    period: point.period,
+    target: round1(point.target + spread),
+    sector: round1(point.sector + spread),
+  }))
+}
+
+// EBITDA growth YoY derived exactly from revenue growth and the EBITDA-margin
+// ratio: (1 + revGrowth) * (margin_t / margin_{t-1}) - 1. The first point assumes
+// a flat margin into the window.
+function deriveEbitdaGrowth(
+  revenue: TrendPoint[],
+  margin: TrendPoint[],
+): TrendPoint[] {
+  return revenue.map((rev, index) => {
+    if (index === 0) {
+      return { period: rev.period, target: round1(rev.target), sector: round1(rev.sector) }
+    }
+    const target =
+      (1 + rev.target / 100) * (margin[index].target / margin[index - 1].target) - 1
+    const sector =
+      (1 + rev.sector / 100) * (margin[index].sector / margin[index - 1].sector) - 1
+    return { period: rev.period, target: round1(target * 100), sector: round1(sector * 100) }
+  })
+}
+
+function assembleTrendSeries(
+  base: BaseTrendSeries,
+  periods: string[],
+  spread: number,
+  leverage?: { target: number[]; sector: number[] },
+): TrendSeries {
+  return {
+    ...base,
+    grossMargin: deriveGrossMargin(base.margin, spread),
+    ebitdaGrowth: deriveEbitdaGrowth(base.revenue, base.margin),
+    leverage: leverage ? buildSeries(periods, leverage.target, leverage.sector) : [],
+  }
+}
+
+function buildDealTrend(
+  base: Record<"quarterly" | "annual", BaseTrendSeries>,
+  dealId: string,
+): Record<"quarterly" | "annual", TrendSeries> {
+  const spread = grossMarginSpreadByDeal[dealId] ?? DEFAULT_GROSS_MARGIN_SPREAD
+  const leverage = leveragePlaceholderByDeal[dealId]
+  return {
+    quarterly: assembleTrendSeries(base.quarterly, quarterPeriods, spread, leverage?.quarterly),
+    annual: assembleTrendSeries(base.annual, annualPeriods, spread, leverage?.annual),
+  }
+}
+
+const trendDataByDeal: Record<string, Record<"quarterly" | "annual", TrendSeries>> =
+  Object.fromEntries(
+    Object.entries(baseTrendDataByDeal).map(
+      ([dealId, base]): [string, Record<"quarterly" | "annual", TrendSeries>] => [
+        dealId,
+        buildDealTrend(base, dealId),
+      ],
+    ),
+  )
+
+const fallbackTrendData: Record<"quarterly" | "annual", TrendSeries> = {
+  quarterly: assembleTrendSeries(
+    baseFallbackTrendData.quarterly,
+    quarterPeriods,
+    DEFAULT_GROSS_MARGIN_SPREAD,
+  ),
+  annual: assembleTrendSeries(
+    baseFallbackTrendData.annual,
+    annualPeriods,
+    DEFAULT_GROSS_MARGIN_SPREAD,
+  ),
+}
+
 export function getTrendData(dealId: string): Record<"quarterly" | "annual", TrendSeries> {
   return trendDataByDeal[dealId] ?? fallbackTrendData
 }
 
-export function getTrendInsights(dealId: string): Record<TrendMetric, string> {
-  return trendInsightsByDeal[dealId] ?? {
-    revenue: "Trend data will populate once CIM analysis is complete.",
-    margin:  "Trend data will populate once CIM analysis is complete.",
-    churn:   "Trend data will populate once CIM analysis is complete.",
+// Insights for derived/placeholder metrics are generated from the series so they
+// always match the numbers shown; base metrics keep their authored narratives.
+function templatedInsight(metric: TrendMetric, series: TrendPoint[]): string {
+  const meta = trendMetricMeta[metric]
+  if (series.length === 0) {
+    return `${meta.label} will populate once backend data is connected.`
   }
+  const first = series[0]
+  const last = series[series.length - 1]
+  const movement = last.target >= first.target ? "risen" : "declined"
+  const gap = last.target - last.sector
+  const favourable = meta.better === "up" ? gap >= 0 : gap <= 0
+  return `${meta.label} has ${movement} from ${meta.format(first.target)} to ${meta.format(
+    last.target,
+  )}, finishing ${meta.format(Math.abs(gap))} ${favourable ? "ahead of" : "behind"} the sector median.`
+}
+
+export function getTrendInsights(dealId: string): Record<TrendMetric, string> {
+  const authored = trendInsightsByDeal[dealId] ?? {}
+  const annualSeries = getTrendData(dealId).annual
+  const insights = {} as Record<TrendMetric, string>
+  for (const metric of Object.keys(trendMetricMeta) as TrendMetric[]) {
+    insights[metric] = authored[metric] ?? templatedInsight(metric, annualSeries[metric])
+  }
+  return insights
 }
 
 // Legacy single-object exports kept for backward compatibility

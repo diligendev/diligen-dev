@@ -32,30 +32,62 @@ type Granularity = "quarterly" | "annual"
 // transactional models (logistics, food, devices, retail) we hide it rather
 // than show a metric a sector specialist would never track for that business.
 const RECURRING_REVENUE_SECTORS = /saas|software|subscription/i
-function metricsForSector(sector: string): TrendMetric[] {
-  return RECURRING_REVENUE_SECTORS.test(sector)
-    ? ["revenue", "margin", "churn"]
-    : ["revenue", "margin"]
+// Metrics only meaningful for recurring-revenue businesses; hidden for
+// transactional models (logistics, food, devices, retail).
+const RECURRING_ONLY_METRICS = new Set<TrendMetric>(["churn"])
+
+// Available metrics are derived from the metrics that actually carry data for the
+// deal, so any metric the backend adds later surfaces automatically. Recurring-
+// only metrics stay hidden for non-recurring sectors.
+function availableMetricsForDeal(dealId: string, sector: string): TrendMetric[] {
+  const data = getTrendData(dealId)
+  const isRecurring = RECURRING_REVENUE_SECTORS.test(sector)
+  return (Object.keys(trendMetricMeta) as TrendMetric[]).filter((metric) => {
+    const hasData =
+      data.annual[metric].length > 0 || data.quarterly[metric].length > 0
+    if (!hasData) return false
+    return isRecurring || !RECURRING_ONLY_METRICS.has(metric)
+  })
 }
 
 export function TrendAnalyzerView({ dealId }: { dealId: string }) {
   const [deal, setDeal] = useState(dealId)
   const [metric, setMetric] = useState<TrendMetric>("revenue")
-  const [granularity, setGranularity] = useState<Granularity>("quarterly")
+  // Default to annual: CIMs typically disclose annual (and sometimes LTM)
+  // figures; quarterly is only offered when the deal actually has quarterly data.
+  const [granularity, setGranularity] = useState<Granularity>("annual")
+
   // Metrics available for this deal's business model. If the active metric isn't
   // applicable to the selected deal (e.g. churn on a logistics deal), fall back
-  // to revenue so the chart never renders an irrelevant series.
-  const availableMetrics = metricsForSector(getDeal(deal)?.sector ?? "")
-  const safeMetric = availableMetrics.includes(metric) ? metric : "revenue"
+  // to the first available metric so the chart never renders an irrelevant series.
+  const availableMetrics = availableMetricsForDeal(deal, getDeal(deal)?.sector ?? "")
+  const safeMetric: TrendMetric = availableMetrics.includes(metric)
+    ? metric
+    : availableMetrics.length > 0
+      ? availableMetrics[0]
+      : "revenue"
+
   const dealTrendData = getTrendData(deal)
   const dealInsights = getTrendInsights(deal)
-  const data = dealTrendData[granularity][safeMetric]
+
+  // Only offer a granularity the selected metric actually has data for.
+  const availableGranularities = (["annual", "quarterly"] as Granularity[]).filter(
+    (option) => dealTrendData[option][safeMetric].length > 0,
+  )
+  const safeGranularity: Granularity = availableGranularities.includes(granularity)
+    ? granularity
+    : availableGranularities.length > 0
+      ? availableGranularities[0]
+      : "annual"
+
+  const data = dealTrendData[safeGranularity][safeMetric]
   const meta = trendMetricMeta[safeMetric]
+  const hasData = data.length > 0
 
   const first = data[0]
   const last  = data[data.length - 1]
-  const targetDelta   = last.target - first.target
-  const gap           = last.target - last.sector
+  const targetDelta   = hasData ? last.target - first.target : 0
+  const gap           = hasData ? last.target - last.sector : 0
   const trendPositive = meta.better === "up" ? targetDelta >= 0 : targetDelta <= 0
   const gapPositive   = meta.better === "up" ? gap >= 0 : gap <= 0
 
@@ -67,41 +99,47 @@ export function TrendAnalyzerView({ dealId }: { dealId: string }) {
 
       <div className="flex flex-1 flex-col gap-4 p-5">
 
-        {/* Metric toggle */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <ToggleGroup
-            value={[safeMetric]}
-            onValueChange={(v) => { if (v[0]) setMetric(v[0] as TrendMetric) }}
-            className="inline-flex gap-0 overflow-hidden rounded border border-border bg-card p-0"
-          >
-            {availableMetrics.map((m) => (
-              <ToggleGroupItem
-                key={m}
-                value={m}
-                className="h-7 rounded-none border-r border-border px-4 text-[12px] font-medium text-muted-foreground last:border-r-0 transition-colors data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
-              >
-                {trendMetricMeta[m].label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+        {/* Metric + granularity toggles */}
+        {availableMetrics.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ToggleGroup
+              value={[safeMetric]}
+              onValueChange={(v) => { if (v[0]) setMetric(v[0] as TrendMetric) }}
+              className="inline-flex gap-0 overflow-hidden rounded border border-border bg-card p-0"
+            >
+              {availableMetrics.map((m) => (
+                <ToggleGroupItem
+                  key={m}
+                  value={m}
+                  className="h-7 rounded-none border-r border-border px-4 text-[12px] font-medium text-muted-foreground last:border-r-0 transition-colors data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
+                >
+                  {trendMetricMeta[m].label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
 
-          <ToggleGroup
-            value={[granularity]}
-            onValueChange={(v) => { if (v[0]) setGranularity(v[0] as Granularity) }}
-            className="inline-flex gap-0 overflow-hidden rounded border border-border bg-card p-0"
-          >
-            {(["quarterly", "annual"] as Granularity[]).map((g) => (
-              <ToggleGroupItem
-                key={g}
-                value={g}
-                className="h-7 rounded-none border-r border-border px-4 text-[12px] font-medium capitalize text-muted-foreground last:border-r-0 transition-colors data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
+            {availableGranularities.length > 1 && (
+              <ToggleGroup
+                value={[safeGranularity]}
+                onValueChange={(v) => { if (v[0]) setGranularity(v[0] as Granularity) }}
+                className="inline-flex gap-0 overflow-hidden rounded border border-border bg-card p-0"
               >
-                {g}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-        </div>
+                {availableGranularities.map((g) => (
+                  <ToggleGroupItem
+                    key={g}
+                    value={g}
+                    className="h-7 rounded-none border-r border-border px-4 text-[12px] font-medium capitalize text-muted-foreground last:border-r-0 transition-colors data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
+                  >
+                    {g}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            )}
+          </div>
+        )}
 
+        {hasData ? (
+        <>
         {/* Stat strip */}
         <div className="grid gap-3 sm:grid-cols-3">
           <TrendStatCard
@@ -110,7 +148,7 @@ export function TrendAnalyzerView({ dealId }: { dealId: string }) {
             sub={`vs ${meta.format(last.sector)} sector median`}
           />
           <TrendStatCard
-            label={granularity === "quarterly" ? "8-Quarter Change" : "3-Year Change"}
+            label={`${first.period} → ${last.period}`}
             value={`${targetDelta >= 0 ? "+" : ""}${targetDelta.toFixed(1)}${meta.unit}`}
             positive={trendPositive}
             showIcon
@@ -205,6 +243,15 @@ export function TrendAnalyzerView({ dealId }: { dealId: string }) {
             {dealInsights[safeMetric]}
           </p>
         </div>
+        </>
+        ) : (
+          <div className="rounded border border-border bg-card px-5 py-12 text-center shadow-[0_1px_3px_0_rgb(0,0,0,0.04)]">
+            <p className="text-[13px] font-medium text-foreground">No trend data yet</p>
+            <p className="mx-auto mt-1 max-w-md text-[12px] leading-relaxed text-muted-foreground">
+              Trend data will appear here once this deal&apos;s financials are available.
+            </p>
+          </div>
+        )}
 
         {/* Source attribution — keeps the benchmark line credible for institutional users */}
         <p className="text-[11px] leading-relaxed text-muted-foreground">

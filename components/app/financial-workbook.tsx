@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import {
   AlertCircle,
   CheckCircle2,
+  Download,
   FileSearch,
   Loader2,
   RefreshCcw,
@@ -17,7 +18,6 @@ import type {
   FinancialLineItem,
   FinancialOutput,
 } from "@/lib/data/deals"
-import { cn } from "@/lib/utils"
 
 type ExtractionPhase = "idle" | "processing" | "error" | "success"
 type RowGroup = {
@@ -33,7 +33,7 @@ type DisplayRow = {
   values: Map<string, FinancialLineItem>
 }
 
-const MAX_VISIBLE_WARNINGS = 2
+const WARNINGS_COLLAPSED_COUNT = 4
 
 const primaryGroups: RowGroup[] = [
   {
@@ -110,13 +110,6 @@ function formatMoney(value: number | null, unit: FinancialLineItem["unit"]) {
   return `$${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
 }
 
-function confidenceClass(confidence: FinancialLineItem["confidence"]) {
-  if (confidence === "high") return "bg-emerald-50 text-emerald-700 ring-emerald-200"
-  if (confidence === "medium") return "bg-amber-50 text-amber-700 ring-amber-200"
-  if (confidence === "low") return "bg-red-50 text-red-700 ring-red-200"
-  return "bg-secondary text-muted-foreground ring-border"
-}
-
 function cleanedLabel(label: string, category: string) {
   const normalized = label.trim()
   if (/earnings before interest/i.test(normalized)) return "EBITDA"
@@ -129,21 +122,166 @@ function cleanedLabel(label: string, category: string) {
   return normalized
 }
 
+// "Latest" excludes projections so headline figures are actuals, not forecasts.
 function latestItemForCategory(output: FinancialOutput | null, category: string) {
   const items = (output?.lineItems ?? [])
-    .filter((item) => item.category === category && item.value != null)
+    .filter(
+      (item) =>
+        item.category === category && item.value != null && !isProjected(item),
+    )
     .sort((a, b) => periodSortKey(a).localeCompare(periodSortKey(b)))
   return items[items.length - 1] ?? null
 }
 
 function metricSub(item: FinancialLineItem | null) {
   if (!item) return "Not extracted"
-  const source = item.sourcePage ? `p.${item.sourcePage}` : "source not linked"
-  return `${item.periodLabel} | ${source}`
+  return item.periodLabel
 }
 
 function rowHasAnyValue(row: DisplayRow, periods: string[]) {
   return periods.some((period) => row.values.has(period))
+}
+
+const UNIT_FACTOR: Record<FinancialLineItem["unit"], number> = {
+  actual: 1,
+  thousands: 1_000,
+  millions: 1_000_000,
+}
+
+function baseValue(item: FinancialLineItem) {
+  if (item.value == null || !Number.isFinite(item.value)) return null
+  return item.value * UNIT_FACTOR[item.unit]
+}
+
+function isProjected(item: FinancialLineItem, now = Date.now()) {
+  if (item.periodType === "projection") return true
+  if (item.periodEndDate) {
+    const time = new Date(item.periodEndDate).getTime()
+    if (Number.isFinite(time) && time > now) return true
+  }
+  return false
+}
+
+type CategoryPeriodValues = Map<string, Map<string, number>>
+
+// Canonical base-unit value per category per period, used only to compute the
+// derived ratios/margins shown alongside the extracted figures. First value wins
+// (line items arrive ordered by period from the data layer).
+function buildCategoryPeriodValues(
+  lineItems: FinancialLineItem[],
+): CategoryPeriodValues {
+  const values: CategoryPeriodValues = new Map()
+  for (const item of lineItems) {
+    const base = baseValue(item)
+    if (base == null) continue
+    let byPeriod = values.get(item.category)
+    if (!byPeriod) {
+      byPeriod = new Map()
+      values.set(item.category, byPeriod)
+    }
+    if (!byPeriod.has(item.periodLabel)) byPeriod.set(item.periodLabel, base)
+  }
+  return values
+}
+
+function valueFor(values: CategoryPeriodValues, category: string, period: string) {
+  return values.get(category)?.get(period) ?? null
+}
+
+function ratioPct(numerator: number | null, denominator: number | null) {
+  if (numerator == null || denominator == null || denominator === 0) return null
+  return (numerator / denominator) * 100
+}
+
+function fmtPct(value: number | null) {
+  return value == null ? null : `${value.toFixed(1)}%`
+}
+
+function fmtRatio(value: number | null) {
+  return value == null ? null : `${value.toFixed(1)}×`
+}
+
+type DerivedRow = {
+  key: string
+  label: string
+  values: Map<string, string>
+}
+
+// Derived metrics computed from already-extracted line items. Shown as clearly
+// marked rows inside the existing tables — never presented as CIM-sourced data.
+function buildDerivedRows(
+  groupKey: string,
+  periods: string[],
+  values: CategoryPeriodValues,
+): DerivedRow[] {
+  const rows: DerivedRow[] = []
+  const addRow = (
+    key: string,
+    label: string,
+    compute: (period: string, index: number) => string | null,
+  ) => {
+    const map = new Map<string, string>()
+    periods.forEach((period, index) => {
+      const display = compute(period, index)
+      if (display != null) map.set(period, display)
+    })
+    if (map.size > 0) rows.push({ key, label, values: map })
+  }
+
+  const ebitdaFor = (period: string) =>
+    valueFor(values, "adjusted_ebitda", period) ?? valueFor(values, "ebitda", period)
+
+  if (groupKey === "performance") {
+    addRow("rev_growth", "Revenue Growth", (period, index) => {
+      if (index === 0) return null
+      const current = valueFor(values, "revenue", period)
+      const previous = valueFor(values, "revenue", periods[index - 1])
+      if (current == null || previous == null) return null
+      return fmtPct(ratioPct(current - previous, previous))
+    })
+    addRow("gross_margin", "Gross Margin", (period) =>
+      fmtPct(
+        ratioPct(valueFor(values, "gross_profit", period), valueFor(values, "revenue", period)),
+      ),
+    )
+    addRow("ebitda_margin", "EBITDA Margin", (period) =>
+      fmtPct(ratioPct(valueFor(values, "ebitda", period), valueFor(values, "revenue", period))),
+    )
+    addRow("adj_ebitda_margin", "Adj. EBITDA Margin", (period) =>
+      fmtPct(
+        ratioPct(
+          valueFor(values, "adjusted_ebitda", period),
+          valueFor(values, "revenue", period),
+        ),
+      ),
+    )
+  }
+
+  if (groupKey === "cashflow") {
+    addRow("ebitda_less_capex", "EBITDA less CapEx", (period) => {
+      const ebitda = ebitdaFor(period)
+      const capex = valueFor(values, "capex", period)
+      if (ebitda == null || capex == null) return null
+      return formatMoney(ebitda - Math.abs(capex), "actual")
+    })
+  }
+
+  if (groupKey === "balance") {
+    addRow("net_debt", "Net Debt", (period) => {
+      const debt = valueFor(values, "debt", period)
+      if (debt == null) return null
+      const cash = valueFor(values, "cash", period) ?? 0
+      return formatMoney(debt - cash, "actual")
+    })
+    addRow("debt_ebitda", "Debt / EBITDA", (period) => {
+      const debt = valueFor(values, "debt", period)
+      const ebitda = ebitdaFor(period)
+      if (debt == null || ebitda == null || ebitda <= 0) return null
+      return fmtRatio(debt / ebitda)
+    })
+  }
+
+  return rows
 }
 
 export function FinancialWorkbook({
@@ -162,6 +300,7 @@ export function FinancialWorkbook({
   const router = useRouter()
   const [phase, setPhase] = useState<ExtractionPhase>("idle")
   const [errorMessage, setErrorMessage] = useState("")
+  const [showAllWarnings, setShowAllWarnings] = useState(false)
   const running = phase === "processing"
   const hasActiveCim = activeCimExtraction.activeCimId != null
 
@@ -175,7 +314,32 @@ export function FinancialWorkbook({
       .map(([label]) => label)
   }, [financialOutput])
 
-  const periodBuckets = useMemo(() => splitPeriodBuckets(periods), [periods])
+  const projectedPeriodSet = useMemo(() => {
+    const set = new Set<string>()
+    for (const item of financialOutput?.lineItems ?? []) {
+      if (isProjected(item)) set.add(item.periodLabel)
+    }
+    return set
+  }, [financialOutput])
+
+  // Prefer the backend's periodType to separate actuals from projections; fall
+  // back to the label-based heuristic only when no period typing is available.
+  const periodBuckets = useMemo(() => {
+    if (projectedPeriodSet.size > 0) {
+      const historical = periods.filter((period) => !projectedPeriodSet.has(period))
+      const projected = periods.filter((period) => projectedPeriodSet.has(period))
+      return {
+        historical: historical.length > 0 ? historical : periods,
+        projected: historical.length > 0 ? projected : [],
+      }
+    }
+    return splitPeriodBuckets(periods)
+  }, [periods, projectedPeriodSet])
+
+  const categoryPeriodValues = useMemo(
+    () => buildCategoryPeriodValues(financialOutput?.lineItems ?? []),
+    [financialOutput],
+  )
 
   const groupedRows = useMemo(() => {
     const rows = new Map<string, DisplayRow>()
@@ -205,15 +369,14 @@ export function FinancialWorkbook({
 
   const summary = useMemo(() => {
     const revenue = latestItemForCategory(financialOutput, "revenue")
-    const adjustedEbitda =
-      latestItemForCategory(financialOutput, "adjusted_ebitda") ??
-      latestItemForCategory(financialOutput, "ebitda")
+    const adjustedEbitda = latestItemForCategory(financialOutput, "adjusted_ebitda")
+    const ebitda = adjustedEbitda ?? latestItemForCategory(financialOutput, "ebitda")
     const capex = latestItemForCategory(financialOutput, "capex")
     const debt = latestItemForCategory(financialOutput, "debt")
 
     return [
       { label: "Latest Revenue", item: revenue },
-      { label: "Latest EBITDA", item: adjustedEbitda },
+      { label: adjustedEbitda ? "Latest Adj. EBITDA" : "Latest EBITDA", item: ebitda },
       { label: "Latest CapEx", item: capex },
       { label: "Debt", item: debt },
     ]
@@ -268,6 +431,45 @@ export function FinancialWorkbook({
     router.refresh()
   }
 
+  function exportCsv() {
+    if (!financialOutput) return
+    const header = [
+      "Company",
+      "Category",
+      "Metric",
+      "Period",
+      "Period Type",
+      "Value",
+      "Unit",
+      "Confidence",
+    ]
+    const escape = (cell: string) => `"${cell.replace(/"/g, '""')}"`
+    const lines = financialOutput.lineItems.map((item) =>
+      [
+        companyName,
+        categoryLabels[item.category] ?? item.category,
+        item.label,
+        item.periodLabel,
+        item.periodType ?? "",
+        item.value ?? "",
+        item.unit,
+        item.confidence ?? "",
+      ]
+        .map((cell) => escape(String(cell)))
+        .join(","),
+    )
+    const csv = [header.map(escape).join(","), ...lines].join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement("a")
+    anchor.href = url
+    anchor.download = `${
+      companyName.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "deal"
+    }-financials.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="flex flex-col gap-3">
       {financialsOutdated && (
@@ -308,21 +510,34 @@ export function FinancialWorkbook({
               source pages before relying on outputs.
             </p>
           </div>
-          <Button
-            type="button"
-            onClick={runFinancialExtraction}
-            disabled={!hasActiveCim || running}
-            className="h-8 rounded-sm bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
-          >
-            {running ? (
-              <Loader2 data-icon="inline-start" className="animate-spin" />
-            ) : financialOutput ? (
-              <RefreshCcw data-icon="inline-start" />
-            ) : (
-              <FileSearch data-icon="inline-start" />
+          <div className="flex items-center gap-2">
+            {financialOutput && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={exportCsv}
+                className="h-8 rounded-sm px-3 text-xs"
+              >
+                <Download data-icon="inline-start" />
+                Export CSV
+              </Button>
             )}
-            {financialOutput ? "Refresh from CIM" : "Extract financials"}
-          </Button>
+            <Button
+              type="button"
+              onClick={runFinancialExtraction}
+              disabled={!hasActiveCim || running}
+              className="h-8 rounded-sm bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/90"
+            >
+              {running ? (
+                <Loader2 data-icon="inline-start" className="animate-spin" />
+              ) : financialOutput ? (
+                <RefreshCcw data-icon="inline-start" />
+              ) : (
+                <FileSearch data-icon="inline-start" />
+              )}
+              {financialOutput ? "Refresh from CIM" : "Extract financials"}
+            </Button>
+          </div>
         </div>
 
         {!hasActiveCim && <EmptyFinancials message="Upload a CIM before extracting financial data." />}
@@ -369,22 +584,42 @@ export function FinancialWorkbook({
 
             {financialOutput.warnings.length > 0 && (
               <div className="border-b border-border px-5 py-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="atlas-label">
+                    {financialOutput.warnings.length}{" "}
+                    {financialOutput.warnings.length === 1
+                      ? "extraction warning"
+                      : "extraction warnings"}
+                  </p>
+                  {financialOutput.warnings.length > WARNINGS_COLLAPSED_COUNT && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllWarnings((value) => !value)}
+                      className="text-[11px] font-medium text-accent hover:underline"
+                    >
+                      {showAllWarnings
+                        ? "Show fewer"
+                        : `Show all ${financialOutput.warnings.length}`}
+                    </button>
+                  )}
+                </div>
                 <div className="grid gap-2 lg:grid-cols-2">
-                  {financialOutput.warnings
-                    .slice(0, MAX_VISIBLE_WARNINGS)
-                    .map((warning) => (
-                      <div
-                        key={`${warning.title}-${warning.detail}`}
-                        className="rounded border border-amber-200 bg-amber-50 px-3 py-2"
-                      >
-                        <p className="text-[12px] font-medium text-amber-900">
-                          {warning.title}
-                        </p>
-                        <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-amber-800">
-                          {warning.detail}
-                        </p>
-                      </div>
-                    ))}
+                  {(showAllWarnings
+                    ? financialOutput.warnings
+                    : financialOutput.warnings.slice(0, WARNINGS_COLLAPSED_COUNT)
+                  ).map((warning) => (
+                    <div
+                      key={`${warning.title}-${warning.detail}`}
+                      className="rounded border border-amber-200 bg-amber-50 px-3 py-2"
+                    >
+                      <p className="text-[12px] font-medium text-amber-900">
+                        {warning.title}
+                      </p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-amber-800">
+                        {warning.detail}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -395,6 +630,7 @@ export function FinancialWorkbook({
                 periods={periodBuckets.historical}
                 rows={groupedRows}
                 groups={primaryGroups}
+                values={categoryPeriodValues}
               />
               {periodBuckets.projected.length > 0 && (
                 <FinancialPeriodSection
@@ -402,6 +638,7 @@ export function FinancialWorkbook({
                   periods={periodBuckets.projected}
                   rows={groupedRows}
                   groups={primaryGroups}
+                  values={categoryPeriodValues}
                   projected
                 />
               )}
@@ -474,12 +711,14 @@ function FinancialPeriodSection({
   periods,
   rows,
   groups,
+  values,
   projected,
 }: {
   title: string
   periods: string[]
   rows: DisplayRow[]
   groups: RowGroup[]
+  values: CategoryPeriodValues
   projected?: boolean
 }) {
   if (periods.length === 0) return null
@@ -502,7 +741,8 @@ function FinancialPeriodSection({
           (row) =>
             group.categories.includes(row.category) && rowHasAnyValue(row, periods),
         )
-        if (groupRows.length === 0) return null
+        const derivedRows = buildDerivedRows(group.key, periods, values)
+        if (groupRows.length === 0 && derivedRows.length === 0) return null
 
         return (
           <div
@@ -540,6 +780,9 @@ function FinancialPeriodSection({
                   {groupRows.map((row) => (
                     <FinancialRow key={row.key} row={row} periods={periods} />
                   ))}
+                  {derivedRows.map((row) => (
+                    <DerivedFinancialRow key={row.key} row={row} periods={periods} />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -572,24 +815,46 @@ function FinancialRow({
         return (
           <td key={period} className="px-4 py-2.5 text-right align-top">
             {item ? (
-              <div className="flex flex-col items-end gap-1">
-                <span className="font-mono text-[13px] tabular-nums text-foreground">
-                  {formatMoney(item.value, item.unit)}
-                </span>
-                <span
-                  className={cn(
-                    "inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset",
-                    confidenceClass(item.confidence),
-                  )}
-                  title={
-                    item.sourcePage
-                      ? `${item.confidence ?? "Unscored"} confidence, source page ${item.sourcePage}`
-                      : `${item.confidence ?? "Unscored"} confidence`
-                  }
-                >
-                  {item.sourcePage ? `p.${item.sourcePage}` : item.confidence ?? "source"}
-                </span>
-              </div>
+              <span className="font-mono text-[13px] tabular-nums text-foreground">
+                {formatMoney(item.value, item.unit)}
+              </span>
+            ) : (
+              <span className="text-[12px] text-muted-foreground">-</span>
+            )}
+          </td>
+        )
+      })}
+    </tr>
+  )
+}
+
+// Computed metric row (margins, growth, leverage). Visually distinct from and
+// labelled separately to extracted rows so it is never mistaken for CIM data.
+function DerivedFinancialRow({
+  row,
+  periods,
+}: {
+  row: DerivedRow
+  periods: string[]
+}) {
+  return (
+    <tr className="border-b border-border bg-secondary/20 last:border-b-0">
+      <td className="sticky left-0 z-10 bg-secondary/20 px-4 py-2.5">
+        <p className="truncate text-[13px] font-medium text-foreground">
+          {row.label}
+        </p>
+        <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+          Derived
+        </p>
+      </td>
+      {periods.map((period) => {
+        const display = row.values.get(period)
+        return (
+          <td key={period} className="px-4 py-2.5 text-right align-top">
+            {display ? (
+              <span className="font-mono text-[13px] tabular-nums text-foreground">
+                {display}
+              </span>
             ) : (
               <span className="text-[12px] text-muted-foreground">-</span>
             )}
