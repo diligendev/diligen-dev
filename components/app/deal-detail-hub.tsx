@@ -40,7 +40,9 @@ import { cn } from "@/lib/utils"
 import type {
   ActiveCimExtraction,
   AnalysisMetadata,
+  DealCallNote,
   FinancialOutput,
+  IcMemo,
 } from "@/lib/data/deals"
 import {
   type ValuationInputs,
@@ -65,7 +67,6 @@ const TABS = [
 
 export function DealDetailHub({
   deal,
-  organizationName,
   analysis,
   analysisMetadata,
   analysisOutdated,
@@ -73,13 +74,15 @@ export function DealDetailHub({
   hasSavedAnalysis,
   financialOutput,
   financialsOutdated,
+  icMemo,
+  memoOutdated,
   checklist,
   documents,
   notes,
   kpiHistory,
+  callNotes,
 }: {
   deal: Deal
-  organizationName: string
   analysis: DealAnalysis
   analysisMetadata: AnalysisMetadata | null
   analysisOutdated: boolean
@@ -87,10 +90,13 @@ export function DealDetailHub({
   hasSavedAnalysis: boolean
   financialOutput: FinancialOutput | null
   financialsOutdated: boolean
+  icMemo: IcMemo | null
+  memoOutdated: boolean
   checklist: ChecklistItem[]
   documents: DealDocument[]
   notes: DealNote[]
   kpiHistory: KpiEntry[]
+  callNotes: DealCallNote[]
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -108,7 +114,7 @@ export function DealDetailHub({
     setVisited((prev) => (prev.has(next) ? prev : new Set(prev).add(next)))
   }
   const [stage, setStage] = useState<DealStage>(deal.stage)
-  const [diligenceAdditions, setDiligenceAdditions] = useState<ChecklistItem[]>([])
+  const diligenceAdditions: ChecklistItem[] = []
   const valuationDefaults = useMemo(
     () =>
       deriveValuationFromFinancials(
@@ -120,13 +126,6 @@ export function DealDetailHub({
   const [valuationInputs, setValuationInputs] = useState<ValuationInputs>(
     valuationDefaults.inputs,
   )
-  const addDiligenceItems = (additions: ChecklistItem[]) =>
-    setDiligenceAdditions((prev) => {
-      const existing = new Set(prev.map((item) => item.question))
-      const fresh = additions.filter((item) => !existing.has(item.question))
-      return [...fresh, ...prev]
-    })
-
   async function updateStage(nextStage: DealStage) {
     if (nextStage === stage) return
     const previousStage = stage
@@ -296,10 +295,8 @@ export function DealDetailHub({
           {visited.has("calls") && (
             <div hidden={tab !== "calls"}>
               <DealCallNotesTab
-                dealId={deal.id}
                 companyName={deal.company}
-                analysis={analysis}
-                onAddToDiligence={addDiligenceItems}
+                notes={callNotes}
               />
             </div>
           )}
@@ -333,12 +330,11 @@ export function DealDetailHub({
           {visited.has("memo") && (
             <div hidden={tab !== "memo"}>
               <DealMemoTab
+                key={icMemo?.updatedAt ?? "unbuilt-memo"}
                 deal={deal}
-                organizationName={organizationName}
-                analysis={analysis}
                 hasSavedAnalysis={hasSavedAnalysis}
-                valuationInputs={valuationInputs}
-                financialBasis={valuationDefaults.basis}
+                icMemo={icMemo}
+                memoOutdated={memoOutdated}
                 onNavigate={selectTab}
               />
             </div>

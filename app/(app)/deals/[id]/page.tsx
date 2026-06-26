@@ -5,11 +5,12 @@ import {
   getCurrentOrganizationActiveCimExtraction,
   getCurrentOrganizationCimAnalysis,
   getCurrentOrganizationDeal,
+  getCurrentOrganizationDealCallNotes,
   getCurrentOrganizationDealDocuments,
   getCurrentOrganizationDealNotes,
   getCurrentOrganizationFinancialOutput,
+  getCurrentOrganizationIcMemo,
 } from "@/lib/data/deals"
-import { getCurrentUserContext } from "@/lib/auth/context"
 import type { DealAnalysis } from "@/lib/mock-data"
 
 function emptyAnalysis(id: string): DealAnalysis {
@@ -45,19 +46,21 @@ export default async function DealAnalysisPage({
   const deal = await getCurrentOrganizationDeal(id)
   if (!deal) notFound()
   const [
-    context,
     dbDocuments,
     savedAnalysis,
     notes,
     activeCimExtraction,
     financialOutput,
+    icMemo,
+    callNotes,
   ] = await Promise.all([
-    getCurrentUserContext(),
     getCurrentOrganizationDealDocuments(id),
     getCurrentOrganizationCimAnalysis(id),
     getCurrentOrganizationDealNotes(id),
     getCurrentOrganizationActiveCimExtraction(id),
     getCurrentOrganizationFinancialOutput(id),
+    getCurrentOrganizationIcMemo(id),
+    getCurrentOrganizationDealCallNotes(id),
   ])
   const documents = dbDocuments
   const activeCim = documents.find(
@@ -73,11 +76,17 @@ export default async function DealAnalysisPage({
     Boolean(financialOutput?.createdAt && activeCim?.uploadedAt) &&
     new Date(activeCim!.uploadedAt!).getTime() >
       new Date(financialOutput!.createdAt).getTime()
+  const memoOutdated =
+    Boolean(
+      icMemo &&
+        ((savedAnalysis?.metadata.outputId &&
+          icMemo.analysisOutputId !== savedAnalysis.metadata.outputId) ||
+          (financialOutput?.id && icMemo.financialOutputId !== financialOutput.id)),
+    )
 
   return (
     <DealDetailHub
       deal={deal}
-      organizationName={context?.organization.name || "Diligen"}
       analysis={savedAnalysis?.analysis ?? emptyAnalysis(id)}
       analysisMetadata={savedAnalysis?.metadata ?? null}
       analysisOutdated={analysisOutdated}
@@ -85,10 +94,13 @@ export default async function DealAnalysisPage({
       hasSavedAnalysis={savedAnalysis != null}
       financialOutput={financialOutput}
       financialsOutdated={financialsOutdated}
+      icMemo={icMemo}
+      memoOutdated={memoOutdated}
       checklist={[]}
       documents={documents}
       notes={notes}
       kpiHistory={[]}
+      callNotes={callNotes}
     />
   )
 }

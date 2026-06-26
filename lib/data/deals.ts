@@ -35,6 +35,7 @@ type DealDocumentRow = {
 }
 
 type AnalysisOutputRow = {
+  id: string
   output: DealAnalysis
   model: string | null
   created_by: string | null
@@ -51,6 +52,23 @@ type DealNoteRow = {
   id: string
   author_id: string | null
   body: string
+  created_at: string
+  updated_at: string
+}
+
+type DealCallNoteRow = {
+  id: string
+  deal_id: string
+  title: string
+  call_date: string | null
+  participants: string | null
+  body: string
+  intelligence_status: DealCallNote["intelligenceStatus"]
+  intelligence_json: CallNoteIntelligence | null
+  intelligence_model: string | null
+  intelligence_generated_at: string | null
+  intelligence_error: string | null
+  created_by: string | null
   created_at: string
   updated_at: string
 }
@@ -95,7 +113,19 @@ type FinancialLineItemRow = {
   verified: boolean
 }
 
+type IcMemoRow = {
+  id: string
+  analysis_output_id: string | null
+  financial_output_id: string | null
+  memo_json: IcMemoSnapshot
+  thesis: string
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type AnalysisMetadata = {
+  outputId: string
   createdAt: string
   createdBy: {
     id: string | null
@@ -150,6 +180,82 @@ export type FinancialOutput = {
     name: string
   }
   lineItems: FinancialLineItem[]
+}
+
+export type IcMemoSnapshot = {
+  organizationName: string
+  deal: {
+    company: string
+    sector: string
+    source: string
+    score: number | null
+  }
+  recommendation: DealAnalysis["recommendation"]
+  thesis: string
+  metrics: DealAnalysis["metrics"]
+  snapshot: string
+  highlights: DealAnalysis["highlights"]
+  redFlags: DealAnalysis["redFlags"]
+  ebitda: DealAnalysis["ebitda"]
+  ebitdaQuality: DealAnalysis["ebitdaQuality"]
+  questions: DealAnalysis["questions"]
+  valuation: {
+    ready: boolean
+    enterpriseValue: string
+    equityCheck: string
+    moic: string
+    irr: string
+    entryMultiple: string
+    ebitdaBasisPeriod: string | null
+    ebitdaBasisPage: number | null
+  }
+}
+
+export type IcMemo = {
+  id: string
+  analysisOutputId: string | null
+  financialOutputId: string | null
+  snapshot: IcMemoSnapshot
+  thesis: string
+  createdAt: string
+  updatedAt: string
+  createdBy: {
+    id: string | null
+    name: string
+  }
+}
+
+export type DealCallNote = {
+  id: string
+  dealId: string
+  dealName: string
+  title: string
+  callDate: string | null
+  participants: string
+  body: string
+  intelligenceStatus: "not_generated" | "processing" | "complete" | "failed"
+  intelligence: CallNoteIntelligence | null
+  intelligenceModel: string | null
+  intelligenceGeneratedAt: string | null
+  intelligenceError: string | null
+  createdAt: string
+  updatedAt: string
+  createdBy: {
+    id: string | null
+    name: string
+  }
+}
+
+export type CallNoteIntelligence = {
+  summary: string[]
+  keyClaims: string[]
+  followUps: string[]
+  diligenceItems: string[]
+  possibleCimContradictions: Array<{
+    callClaim: string
+    cimReference: string
+    whyItMatters: string
+  }>
 }
 
 function toDeal(row: DealRow): Deal {
@@ -252,7 +358,7 @@ export async function getCurrentOrganizationCimAnalysis(dealId: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("analysis_outputs")
-    .select("output,model,created_by,created_at")
+    .select("id,output,model,created_by,created_at")
     .eq("organization_id", context.organization.id)
     .eq("deal_id", dealId)
     .eq("analysis_type", "cim")
@@ -281,6 +387,7 @@ export async function getCurrentOrganizationCimAnalysis(dealId: string) {
   return {
     analysis: data.output,
     metadata: {
+      outputId: data.id,
       createdAt: data.created_at,
       createdBy: {
         id: creator?.id ?? data.created_by,
@@ -369,6 +476,127 @@ export async function getCurrentOrganizationFinancialOutput(
       verified: item.verified,
     })),
   }
+}
+
+export async function getCurrentOrganizationIcMemo(
+  dealId: string,
+): Promise<IcMemo | null> {
+  const context = await getCurrentUserContext()
+  if (!context || !hasWorkspace(context)) return null
+
+  const supabase = await createClient()
+  const { data: memo, error } = await supabase
+    .from("ic_memos")
+    .select("id,analysis_output_id,financial_output_id,memo_json,thesis,created_by,created_at,updated_at")
+    .eq("organization_id", context.organization.id)
+    .eq("deal_id", dealId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<IcMemoRow>()
+
+  if (error) throw new Error(error.message)
+  if (!memo) return null
+
+  let creator: AnalysisCreatorRow | null = null
+  if (memo.created_by) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id,full_name,email")
+      .eq("id", memo.created_by)
+      .maybeSingle<AnalysisCreatorRow>()
+
+    creator = profile
+  }
+
+  return {
+    id: memo.id,
+    analysisOutputId: memo.analysis_output_id,
+    financialOutputId: memo.financial_output_id,
+    snapshot: memo.memo_json,
+    thesis: memo.thesis,
+    createdAt: memo.created_at,
+    updatedAt: memo.updated_at,
+    createdBy: {
+      id: creator?.id ?? memo.created_by,
+      name: creator?.full_name ?? creator?.email ?? "Workspace member",
+    },
+  }
+}
+
+export async function getCurrentOrganizationDealCallNotes(
+  dealId?: string,
+): Promise<DealCallNote[]> {
+  const context = await getCurrentUserContext()
+  if (!context || !hasWorkspace(context)) return []
+
+  const supabase = await createClient()
+  let query = supabase
+    .from("deal_call_notes")
+    .select("id,deal_id,title,call_date,participants,body,intelligence_status,intelligence_json,intelligence_model,intelligence_generated_at,intelligence_error,created_by,created_at,updated_at")
+    .eq("organization_id", context.organization.id)
+    .order("call_date", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+
+  if (dealId) query = query.eq("deal_id", dealId)
+
+  const { data, error } = await query.returns<DealCallNoteRow[]>()
+  if (error) throw new Error(error.message)
+
+  const dealIds = Array.from(new Set((data ?? []).map((note) => note.deal_id)))
+  const authorIds = Array.from(
+    new Set((data ?? []).flatMap((note) => note.created_by ?? [])),
+  )
+  const dealNames = new Map<string, string>()
+  const authors = new Map<string, AnalysisCreatorRow>()
+
+  if (dealIds.length > 0) {
+    const { data: deals, error: dealsError } = await supabase
+      .from("deals")
+      .select("id,name")
+      .eq("organization_id", context.organization.id)
+      .in("id", dealIds)
+      .returns<Array<{ id: string; name: string }>>()
+
+    if (dealsError) throw new Error(dealsError.message)
+    for (const deal of deals ?? []) dealNames.set(deal.id, deal.name)
+  }
+
+  if (authorIds.length > 0) {
+    const { data: profiles, error: profileError } = await supabase
+      .from("profiles")
+      .select("id,full_name,email")
+      .in("id", authorIds)
+      .returns<AnalysisCreatorRow[]>()
+
+    if (profileError) throw new Error(profileError.message)
+    for (const profile of profiles ?? []) authors.set(profile.id, profile)
+  }
+
+  return (data ?? []).map((note): DealCallNote => {
+    const author = note.created_by ? authors.get(note.created_by) : null
+
+    return {
+      id: note.id,
+      dealId: note.deal_id,
+      dealName: dealNames.get(note.deal_id) ?? "Unknown deal",
+      title: note.title,
+      callDate: note.call_date,
+      participants: note.participants ?? "",
+      body: note.body,
+      intelligenceStatus: note.intelligence_status,
+      intelligence: note.intelligence_json,
+      intelligenceModel: note.intelligence_model,
+      intelligenceGeneratedAt: note.intelligence_generated_at,
+      intelligenceError: note.intelligence_error,
+      createdAt: note.created_at,
+      updatedAt: note.updated_at,
+      createdBy: {
+        id: author?.id ?? note.created_by,
+        name: author?.full_name ?? author?.email ?? "Workspace member",
+      },
+    }
+  })
 }
 
 export type ActiveCimExtraction = {
