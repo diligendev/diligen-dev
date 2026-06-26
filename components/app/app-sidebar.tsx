@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
-import { getUsage } from "@/lib/mock-data"
+import type { UsageMetric } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 
 const nav = [
@@ -103,6 +103,7 @@ function initialsFor(name: string, email: string) {
 
 export function AppSidebar({
   user,
+  usageMetrics,
 }: {
   user: {
     name: string
@@ -110,12 +111,13 @@ export function AppSidebar({
     role: "owner" | "admin" | "member" | "viewer"
     organizationName: string
   }
+  usageMetrics?: UsageMetric[]
 }) {
   const pathname = usePathname()
   const router = useRouter()
   const initials = initialsFor(user.name, user.email)
-  const usageGlance = getUsage().filter(
-    (m) => m.key === "analyses" || m.key === "seats",
+  const usageGlance = (usageMetrics ?? []).filter(
+    (m) => m.key === "cim_analyses" || m.key === "seats",
   )
 
   async function handleSignOut() {
@@ -294,11 +296,11 @@ export function AppSidebar({
                 <DropdownMenuSeparator />
 
                 <DropdownMenuGroup>
-                  <DropdownMenuItem render={<Link href="/settings" />}>
+                  <DropdownMenuItem render={<Link href="/settings?section=profile" />}>
                     <UserRound />
                     Account settings
                   </DropdownMenuItem>
-                  <DropdownMenuItem render={<Link href="/settings?section=billing" />}>
+                  <DropdownMenuItem render={<Link href="/settings?section=usage" />}>
                     <CreditCard />
                     Plan &amp; usage
                   </DropdownMenuItem>

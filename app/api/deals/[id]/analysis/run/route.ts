@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
 import { getActiveCimExtractedText } from "@/lib/data/deals"
 import { createClient } from "@/lib/supabase/server"
+import { logUsageEvent, type AiUsage } from "@/lib/usage"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -166,7 +167,11 @@ async function runAnthropicAnalysis(documentText: string) {
     throw new Error("AI response did not include text.")
   }
 
-  return extractJson(text)
+  return {
+    analysis: extractJson(text),
+    model,
+    usage: payload?.usage as AiUsage | undefined,
+  }
 }
 
 export async function POST(
@@ -197,12 +202,14 @@ export async function POST(
     return NextResponse.json({ error: "Deal not found." }, { status: 404 })
   }
 
+  let activeCimId: string | null = null
   let documentText = ""
   try {
     const extracted = await getActiveCimExtractedText({
       dealId: id,
       organizationId: context.organization.id,
     })
+    activeCimId = extracted.activeCimId
     documentText = extracted.documentText
   } catch (error) {
     return NextResponse.json(
@@ -226,16 +233,32 @@ export async function POST(
   }
 
   let analysis: unknown
+  let model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5-20250929"
+  let usage: AiUsage | undefined
 
   try {
-    analysis = await runAnthropicAnalysis(documentText)
+    const result = await runAnthropicAnalysis(documentText)
+    analysis = result.analysis
+    model = result.model
+    usage = result.usage
   } catch (error) {
+    const message = error instanceof Error ? error.message : "AI analysis failed."
+    await logUsageEvent({
+      supabase,
+      organizationId: context.organization.id,
+      userId: context.user.id,
+      feature: "cim_analysis",
+      status: "failed",
+      provider: "anthropic",
+      model,
+      dealId: id,
+      documentId: activeCimId,
+      errorMessage: message,
+      metadata: { textLength: documentText.length },
+    })
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "AI analysis failed.",
+        error: message,
       },
       { status: 400 },
     )
@@ -253,7 +276,7 @@ export async function POST(
     analysis_type: "cim",
     status: "complete",
     output: analysis,
-    model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5-20250929",
+    model,
     created_by: context.user.id,
   })
 
@@ -276,6 +299,20 @@ export async function POST(
     })
     .eq("id", id)
     .eq("organization_id", context.organization.id)
+
+  await logUsageEvent({
+    supabase,
+    organizationId: context.organization.id,
+    userId: context.user.id,
+    feature: "cim_analysis",
+    status: "success",
+    provider: "anthropic",
+    model,
+    dealId: id,
+    documentId: activeCimId,
+    usage,
+    metadata: { textLength: documentText.length },
+  })
 
   return NextResponse.json({ ok: true })
 }

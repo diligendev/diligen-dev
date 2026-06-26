@@ -7,6 +7,7 @@ import { CommandPalette } from "@/components/app/command-palette"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { getOrganizationUsageMetrics } from "@/lib/data/usage"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const context = await getCurrentUserContext()
@@ -19,6 +20,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/setup")
   }
 
+  const usageMetrics = await getOrganizationUsageMetrics({
+    organizationId: context.organization.id,
+  })
+
   return (
     <div className="app-shell">
       <TooltipProvider>
@@ -30,6 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               role: context.membership.role,
               organizationName: context.organization.name,
             }}
+            usageMetrics={usageMetrics}
           />
           <SidebarInset className="bg-background">{children}</SidebarInset>
           <CommandPalette />

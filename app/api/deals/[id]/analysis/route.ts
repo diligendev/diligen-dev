@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
 import { createClient } from "@/lib/supabase/server"
+import { logUsageEvent } from "@/lib/usage"
 
 const RECOMMENDATIONS = ["Recommend", "Pass", "Needs More Information"]
 const EBITDA_QUALITY = ["High", "Moderate", "Low"]
@@ -72,13 +73,14 @@ export async function POST(
     return NextResponse.json({ error: "Deal not found." }, { status: 404 })
   }
 
+  const model = typeof body?.model === "string" ? body.model : "manual-json"
   const { error } = await supabase.from("analysis_outputs").insert({
     organization_id: context.organization.id,
     deal_id: id,
     analysis_type: "cim",
     status: "complete",
     output: analysis,
-    model: typeof body?.model === "string" ? body.model : "manual-json",
+    model,
     created_by: context.user.id,
   })
 
@@ -96,6 +98,17 @@ export async function POST(
     })
     .eq("id", id)
     .eq("organization_id", context.organization.id)
+
+  await logUsageEvent({
+    supabase,
+    organizationId: context.organization.id,
+    userId: context.user.id,
+    feature: "cim_analysis",
+    status: "success",
+    provider: "internal",
+    model,
+    dealId: id,
+  })
 
   return NextResponse.json({ ok: true })
 }

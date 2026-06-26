@@ -4,6 +4,7 @@ import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
 import { createClient } from "@/lib/supabase/server"
 import type { CallNoteIntelligence } from "@/lib/data/deals"
 import type { DealAnalysis } from "@/lib/mock-data"
+import { logUsageEvent, type AiUsage } from "@/lib/usage"
 
 type CallNoteRow = {
   id: string
@@ -176,6 +177,7 @@ async function requestIntelligence({
   return {
     intelligence: normalizeIntelligence(extractJson(text)),
     model,
+    usage: payload?.usage as AiUsage | undefined,
   }
 }
 
@@ -233,7 +235,7 @@ export async function POST(
     .maybeSingle<AnalysisRow>()
 
   try {
-    const { intelligence, model } = await requestIntelligence({
+    const { intelligence, model, usage } = await requestIntelligence({
       note,
       analysis: analysisOutput?.output ?? null,
     })
@@ -253,6 +255,23 @@ export async function POST(
 
     if (error) throw new Error(error.message)
 
+    await logUsageEvent({
+      supabase,
+      organizationId: context.organization.id,
+      userId: context.user.id,
+      feature: "call_note_intelligence",
+      status: "success",
+      provider: "anthropic",
+      model,
+      dealId: note.deal_id,
+      usage,
+      metadata: {
+        callNoteId: note.id,
+        hasCimAnalysis: !!analysisOutput?.output,
+        noteLength: note.body.length,
+      },
+    })
+
     return NextResponse.json({ ok: true, intelligence })
   } catch (error) {
     const message =
@@ -267,6 +286,23 @@ export async function POST(
       })
       .eq("id", note.id)
       .eq("organization_id", context.organization.id)
+
+    await logUsageEvent({
+      supabase,
+      organizationId: context.organization.id,
+      userId: context.user.id,
+      feature: "call_note_intelligence",
+      status: "failed",
+      provider: "anthropic",
+      model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5-20250929",
+      dealId: note.deal_id,
+      errorMessage: message,
+      metadata: {
+        callNoteId: note.id,
+        hasCimAnalysis: !!analysisOutput?.output,
+        noteLength: note.body.length,
+      },
+    })
 
     return NextResponse.json({ error: message }, { status: 400 })
   }

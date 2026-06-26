@@ -15,6 +15,7 @@ import {
   fmtX,
 } from "@/lib/valuation"
 import type { DealAnalysis } from "@/lib/mock-data"
+import { logUsageEvent } from "@/lib/usage"
 
 type DealRow = {
   id: string
@@ -131,6 +132,15 @@ export async function POST(
   }
 
   if (!analysisOutput) {
+    await logUsageEvent({
+      supabase,
+      organizationId: context.organization.id,
+      userId: context.user.id,
+      feature: "ic_memo",
+      status: "failed",
+      dealId: id,
+      errorMessage: "Run CIM analysis before building the IC memo.",
+    })
     return NextResponse.json(
       { error: "Run CIM analysis before building the IC memo." },
       { status: 400 },
@@ -166,8 +176,31 @@ export async function POST(
     .single<{ id: string }>()
 
   if (memoError) {
+    await logUsageEvent({
+      supabase,
+      organizationId: context.organization.id,
+      userId: context.user.id,
+      feature: "ic_memo",
+      status: "failed",
+      dealId: id,
+      errorMessage: memoError.message,
+    })
     return NextResponse.json({ error: memoError.message }, { status: 400 })
   }
+
+  await logUsageEvent({
+    supabase,
+    organizationId: context.organization.id,
+    userId: context.user.id,
+    feature: "ic_memo",
+    status: "success",
+    dealId: id,
+    metadata: {
+      memoId: memo.id,
+      analysisOutputId: analysisOutput.id,
+      hasFinancialOutput: !!financialOutput?.id,
+    },
+  })
 
   return NextResponse.json({ ok: true, memoId: memo.id })
 }

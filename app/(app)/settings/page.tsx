@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 
 import { SettingsView } from "@/components/app/settings-view"
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { getOrganizationUsageMetrics } from "@/lib/data/usage"
 import { createClient } from "@/lib/supabase/server"
 
 type MemberRow = {
@@ -88,6 +89,11 @@ export default async function SettingsPage({
     expiresAt: invite.expires_at,
   }))
 
+  const usageMetrics = await getOrganizationUsageMetrics({
+    organizationId: context.organization.id,
+    seatCount: members.length,
+  })
+
   // Pass the raw query value; SettingsView (client) validates it. Validating
   // here would mean calling a client-only function from the server.
   return (
@@ -103,6 +109,7 @@ export default async function SettingsPage({
       }}
       members={members}
       pendingInvites={pendingInvites}
+      usageMetrics={usageMetrics}
       initialSection={section}
     />
   )

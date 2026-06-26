@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
 import { getActiveCimExtractedText } from "@/lib/data/deals"
 import { createClient } from "@/lib/supabase/server"
+import { logUsageEvent, type AiUsage } from "@/lib/usage"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -509,7 +510,12 @@ async function requestFinancialExtraction(documentText: string, retry = false) {
   )
 
   if (toolUse?.input) {
-    return validateExtraction(toolUse.input)
+    return {
+      extraction: validateExtraction(toolUse.input),
+      model,
+      usage: payload?.usage as AiUsage | undefined,
+      retryUsed: retry,
+    }
   }
 
   const text = payload?.content
@@ -518,7 +524,12 @@ async function requestFinancialExtraction(documentText: string, retry = false) {
     ?.join("\n")
 
   if (!text) throw new Error("AI response did not include text.")
-  return validateExtraction(extractJson(text))
+  return {
+    extraction: validateExtraction(extractJson(text)),
+    model,
+    usage: payload?.usage as AiUsage | undefined,
+    retryUsed: retry,
+  }
 }
 
 async function runFinancialExtraction(documentText: string) {
@@ -530,7 +541,8 @@ async function runFinancialExtraction(documentText: string) {
       throw error
     }
 
-    return requestFinancialExtraction(documentText, true)
+    const retryResult = await requestFinancialExtraction(documentText, true)
+    return { ...retryResult, retryUsed: true }
   }
 }
 
@@ -583,15 +595,34 @@ export async function POST(
   }
 
   let extraction: FinancialExtraction
+  let model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5-20250929"
+  let usage: AiUsage | undefined
+  let retryUsed = false
   try {
-    extraction = await runFinancialExtraction(documentText)
+    const result = await runFinancialExtraction(documentText)
+    extraction = result.extraction
+    model = result.model
+    usage = result.usage
+    retryUsed = result.retryUsed
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Financial extraction failed."
+    await logUsageEvent({
+      supabase,
+      organizationId: context.organization.id,
+      userId: context.user.id,
+      feature: "financial_extraction",
+      status: "failed",
+      provider: "anthropic",
+      model,
+      dealId,
+      documentId: activeCimId,
+      errorMessage: message,
+      metadata: { textLength: documentText.length },
+    })
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Financial extraction failed.",
+        error: message,
       },
       { status: 400 },
     )
@@ -604,7 +635,6 @@ export async function POST(
     )
   }
 
-  const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5-20250929"
   const { data: output, error: outputError } = await supabase
     .from("financial_outputs")
     .insert({
@@ -675,6 +705,25 @@ export async function POST(
   if (activateError) {
     return NextResponse.json({ error: activateError.message }, { status: 400 })
   }
+
+  await logUsageEvent({
+    supabase,
+    organizationId: context.organization.id,
+    userId: context.user.id,
+    feature: "financial_extraction",
+    status: "success",
+    provider: "anthropic",
+    model,
+    dealId,
+    documentId: activeCimId,
+    usage,
+    metadata: {
+      textLength: documentText.length,
+      retryUsed,
+      lineItemCount: extraction.lineItems.length,
+      warningCount: extraction.warnings.length,
+    },
+  })
 
   return NextResponse.json({
     ok: true,

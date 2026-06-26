@@ -90,12 +90,14 @@ export function SettingsView({
   organization,
   members,
   pendingInvites,
+  usageMetrics,
   initialSection,
 }: {
   user: { name: string; email: string; role: WorkspaceRole }
   organization: { name: string; slug: string }
   members: SettingsMember[]
   pendingInvites: PendingInvite[]
+  usageMetrics?: UsageMetric[]
   initialSection?: string
 }) {
   const [section, setSection] = useState<SectionId>(
@@ -134,7 +136,7 @@ export function SettingsView({
           {section === "profile" && <ProfileSection user={user} />}
           {section === "workspace" && <WorkspaceSection organization={organization} />}
           {section === "billing" && <BillingSection />}
-          {section === "usage" && <UsageSection />}
+          {section === "usage" && <UsageSection usageMetrics={usageMetrics} />}
           {section === "team" && (
             <TeamSection
               currentUserRole={user.role}
@@ -238,6 +240,19 @@ function Switch({
 }
 
 function fmtNum(n: number, unit?: string) {
+  if (unit === "USD") {
+    return `$${n.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`
+  }
+
+  if (unit === "GB" && n > 0 && n < 1) {
+    return `${(n * 1024).toLocaleString(undefined, {
+      maximumFractionDigits: 1,
+    })} MB`
+  }
+
   const v = Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1)
   return unit ? `${v} ${unit}` : v
 }
@@ -601,8 +616,8 @@ function PlanLimitRow({
 // Usage
 // ---------------------------------------------------------------------------
 
-function UsageSection() {
-  const usage = getUsage()
+function UsageSection({ usageMetrics }: { usageMetrics?: UsageMetric[] }) {
+  const usage = usageMetrics ?? getUsage()
   return (
     <SectionCard
       title="Usage this period"
