@@ -11,6 +11,7 @@ import {
   getCurrentOrganizationFinancialOutput,
   getCurrentOrganizationIcMemo,
 } from "@/lib/data/deals"
+import { getCurrentOrganizationRevenueFiles } from "@/lib/data/revenue"
 import type { DealAnalysis } from "@/lib/mock-data"
 
 function emptyAnalysis(id: string): DealAnalysis {
@@ -53,6 +54,7 @@ export default async function DealAnalysisPage({
     financialOutput,
     icMemo,
     callNotes,
+    revenueFiles,
   ] = await Promise.all([
     getCurrentOrganizationDealDocuments(id),
     getCurrentOrganizationCimAnalysis(id),
@@ -61,6 +63,7 @@ export default async function DealAnalysisPage({
     getCurrentOrganizationFinancialOutput(id),
     getCurrentOrganizationIcMemo(id),
     getCurrentOrganizationDealCallNotes(id),
+    getCurrentOrganizationRevenueFiles(id),
   ])
   const documents = dbDocuments
   const activeCim = documents.find(
@@ -101,6 +104,7 @@ export default async function DealAnalysisPage({
       notes={notes}
       kpiHistory={[]}
       callNotes={callNotes}
+      revenueFiles={revenueFiles}
     />
   )
 }

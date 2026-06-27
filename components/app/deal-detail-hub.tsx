@@ -44,6 +44,7 @@ import type {
   FinancialOutput,
   IcMemo,
 } from "@/lib/data/deals"
+import type { RevenueFile } from "@/lib/data/revenue"
 import {
   type ValuationInputs,
   defaultValuationInputs,
@@ -81,6 +82,7 @@ export function DealDetailHub({
   notes,
   kpiHistory,
   callNotes,
+  revenueFiles,
 }: {
   deal: Deal
   analysis: DealAnalysis
@@ -97,6 +99,7 @@ export function DealDetailHub({
   notes: DealNote[]
   kpiHistory: KpiEntry[]
   callNotes: DealCallNote[]
+  revenueFiles: RevenueFile[]
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -302,7 +305,11 @@ export function DealDetailHub({
           )}
           {visited.has("revenue-explorer") && (
             <div hidden={tab !== "revenue-explorer"}>
-              <DealAnalysesTab deal={deal} documents={documents} />
+              <DealAnalysesTab
+                deal={deal}
+                documents={documents}
+                revenueFiles={revenueFiles}
+              />
             </div>
           )}
           {visited.has("financials") && (

@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   Search,
   SlidersHorizontal,
@@ -22,6 +23,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Loader2,
+  ArrowUpRight,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -75,6 +77,7 @@ import {
   timeViewsAvailable,
 } from "@/lib/analysis-ingest"
 import type { Deal, DealDocument } from "@/lib/mock-data"
+import type { RevenueFile } from "@/lib/data/revenue"
 import { cn } from "@/lib/utils"
 
 type Mode =
@@ -96,17 +99,150 @@ function isSpreadsheet(fileName: string): boolean {
   return SPREADSHEET_EXTS.has(fileName.split(".").pop()?.toLowerCase() ?? "")
 }
 
+function formatRevenueFileDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+}
+
+function DealRevenueExplorerSummary({
+  deal,
+  revenueFiles,
+  onCreate,
+}: {
+  deal: Deal
+  revenueFiles: RevenueFile[]
+  onCreate: () => void
+}) {
+  const router = useRouter()
+  const latestFile = revenueFiles[0]
+  const totalRows = revenueFiles.reduce((total, file) => total + file.rowCount, 0)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="atlas-label">Revenue Explorer</p>
+          <h2 className="mt-1 text-[17px] font-semibold text-foreground">
+            Revenue explorations
+          </h2>
+          <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
+            Review imported revenue files for this deal, then open the full
+            workspace to map, analyze, or update customer-level revenue data.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          onClick={onCreate}
+          className="h-8 rounded-sm bg-accent px-3 text-[13px] text-accent-foreground hover:bg-accent/90"
+        >
+          <Plus data-icon="inline-start" />
+          {revenueFiles.length > 0 ? "New exploration" : "Create exploration"}
+        </Button>
+      </div>
+
+      {revenueFiles.length === 0 ? (
+        <div className="rounded border border-dashed border-border bg-card px-5 py-16 text-center">
+          <FileSpreadsheet className="mx-auto size-7 text-muted-foreground" />
+          <p className="mt-3 text-[13px] font-medium text-foreground">
+            No revenue exploration yet
+          </p>
+          <p className="mx-auto mt-1 max-w-xl text-[12px] leading-relaxed text-muted-foreground">
+            Import a revenue CSV to analyze customer concentration, revenue
+            trends, and product or channel mix for {deal.company}.
+          </p>
+          <Button
+            size="sm"
+            onClick={onCreate}
+            className="mt-4 h-8 rounded-sm bg-accent px-3 text-[13px] text-accent-foreground hover:bg-accent/90"
+          >
+            <Plus data-icon="inline-start" />
+            Create exploration
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded border border-border bg-card px-4 py-3">
+              <p className="atlas-label">Imported files</p>
+              <p className="mt-1 text-[22px] font-semibold tracking-tight text-foreground">
+                {revenueFiles.length.toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded border border-border bg-card px-4 py-3">
+              <p className="atlas-label">Rows imported</p>
+              <p className="mt-1 text-[22px] font-semibold tracking-tight text-foreground">
+                {totalRows.toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded border border-border bg-card px-4 py-3">
+              <p className="atlas-label">Latest import</p>
+              <p className="mt-2 truncate text-[13px] font-semibold text-foreground">
+                {latestFile ? formatRevenueFileDate(latestFile.createdAt) : "-"}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded border border-border bg-card shadow-[0_1px_3px_0_rgb(0,0,0,0.04)]">
+            <div className="border-b border-border px-4 py-3">
+              <p className="text-[13px] font-semibold text-foreground">
+                Saved revenue imports
+              </p>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                Click into Revenue Explorer to view concentration, trends, and mix.
+              </p>
+            </div>
+            <div className="divide-y divide-border">
+              {revenueFiles.map((file) => (
+                <button
+                  key={file.id}
+                  type="button"
+                  onClick={() =>
+                    router.push(`/deals/${deal.id}/revenue/${file.id}`)
+                  }
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary/40"
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="inline-flex size-8 shrink-0 items-center justify-center rounded border border-border bg-secondary/30 text-muted-foreground">
+                      <FileSpreadsheet className="size-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-[13px] font-medium text-foreground">
+                        {file.fileName}
+                      </span>
+                      <span className="mt-0.5 block text-[12px] text-muted-foreground">
+                        {file.rowCount.toLocaleString()} rows -{" "}
+                        {formatRevenueFileDate(file.createdAt)}
+                      </span>
+                    </span>
+                  </span>
+                  <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export function DealAnalysesTab({
   deal,
   documents,
+  revenueFiles,
   showSearch = true,
 }: {
   deal: Deal
   documents: DealDocument[]
+  revenueFiles?: RevenueFile[]
   /** Hide the in-list search box where an outer control already scopes the view
    *  (e.g. the global Revenue Explorer page, which has a deal selector). */
   showSearch?: boolean
 }) {
+  const router = useRouter()
   const [mode, setMode] = useState<Mode>({ kind: "list" })
   const [analyses, setAnalyses] = useState<AnalysisRecord[]>(() =>
     sampleAnalyses.filter((a) => a.dealId === deal.id),
@@ -147,7 +283,17 @@ export function DealAnalysesTab({
     })
   }, [analyses, search, statusFilter, sortBy])
 
-  const startCreate = () => setMode({ kind: "create" })
+  const startCreate = () => router.push(`/analysis?dealId=${deal.id}`)
+
+  if (revenueFiles) {
+    return (
+      <DealRevenueExplorerSummary
+        deal={deal}
+        revenueFiles={revenueFiles}
+        onCreate={startCreate}
+      />
+    )
+  }
 
   const finishCreate = (config: {
     name: string

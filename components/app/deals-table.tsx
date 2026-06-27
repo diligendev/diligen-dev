@@ -12,6 +12,7 @@ import {
   Loader2,
   AlertCircle,
   Eye,
+  FileSpreadsheet,
   TrendingUp,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -278,6 +279,12 @@ export function RowActions({
           >
             <TrendingUp />
             Open trend analyzer
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => router.push(`/analysis?dealId=${dealId}`)}
+          >
+            <FileSpreadsheet />
+            Create revenue exploration
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
