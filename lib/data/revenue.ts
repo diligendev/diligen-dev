@@ -21,6 +21,7 @@ export type RevenueRow = {
 export type RevenueFile = {
   id: string
   dealId: string
+  documentId: string | null
   fileName: string
   rowCount: number
   createdAt: string
@@ -44,6 +45,7 @@ type RevenueRowRecord = {
 type RevenueFileRecord = {
   id: string
   deal_id: string
+  document_id: string | null
   file_name: string
   row_count: number
   created_at: string
@@ -62,6 +64,7 @@ function toRevenueFile(file: RevenueFileRecord): RevenueFile {
   return {
     id: file.id,
     dealId: file.deal_id,
+    documentId: file.document_id,
     fileName: file.file_name,
     rowCount: file.row_count,
     createdAt: file.created_at,
@@ -93,7 +96,7 @@ export async function getCurrentOrganizationRevenueExplorerData(dealId?: string)
 
   const { data: files, error: filesError } = await supabase
     .from("revenue_files")
-    .select("id,deal_id,file_name,row_count,created_at")
+    .select("id,deal_id,document_id,file_name,row_count,created_at")
     .eq("organization_id", context.organization.id)
     .order("created_at", { ascending: false })
     .returns<RevenueFileRecord[]>()
@@ -160,7 +163,7 @@ export async function getCurrentOrganizationRevenueFiles(dealId: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("revenue_files")
-    .select("id,deal_id,file_name,row_count,created_at")
+    .select("id,deal_id,document_id,file_name,row_count,created_at")
     .eq("organization_id", context.organization.id)
     .eq("deal_id", dealId)
     .order("created_at", { ascending: false })
@@ -189,7 +192,7 @@ export async function getCurrentOrganizationRevenueFileDetail({
   const supabase = await createClient()
   const { data: file, error: fileError } = await supabase
     .from("revenue_files")
-    .select("id,deal_id,file_name,row_count,created_at")
+    .select("id,deal_id,document_id,file_name,row_count,created_at")
     .eq("organization_id", context.organization.id)
     .eq("deal_id", dealId)
     .eq("id", revenueFileId)

@@ -2,11 +2,15 @@ create table if not exists public.revenue_files (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   deal_id uuid not null references public.deals(id) on delete cascade,
+  document_id uuid null references public.deal_documents(id) on delete set null,
   file_name text not null,
   row_count integer not null default 0 check (row_count >= 0),
   imported_by uuid null references public.profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+alter table public.revenue_files
+  add column if not exists document_id uuid null references public.deal_documents(id) on delete set null;
 
 create table if not exists public.revenue_rows (
   id uuid primary key default gen_random_uuid(),
@@ -27,6 +31,9 @@ create table if not exists public.revenue_rows (
 
 create index if not exists revenue_files_org_deal_created_idx
   on public.revenue_files (organization_id, deal_id, created_at desc);
+
+create index if not exists revenue_files_document_idx
+  on public.revenue_files (document_id);
 
 create index if not exists revenue_rows_org_deal_date_idx
   on public.revenue_rows (organization_id, deal_id, revenue_date);
@@ -63,3 +70,15 @@ create policy "revenue_rows_insert_org_members"
 on public.revenue_rows
 for insert
 with check (public.is_org_member(organization_id));
+
+update storage.buckets
+set
+  public = false,
+  file_size_limit = 52428800,
+  allowed_mime_types = array[
+    'application/pdf',
+    'text/csv',
+    'application/csv',
+    'application/vnd.ms-excel'
+  ]
+where id = 'deal-documents';

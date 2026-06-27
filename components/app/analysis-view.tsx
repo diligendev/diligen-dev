@@ -57,6 +57,7 @@ import type { RevenueFile, RevenueRow } from "@/lib/data/revenue"
 import type { Deal } from "@/lib/mock-data"
 
 type ParsedCsv = {
+  file: File
   fileName: string
   headers: string[]
   rows: Record<string, string>[]
@@ -178,6 +179,7 @@ export function AnalysisView({
         return
       }
       setParsedCsv({
+        file,
         fileName: file.name,
         headers: parsed.headers,
         rows: parsed.rows,
@@ -190,16 +192,24 @@ export function AnalysisView({
   async function importRevenueRows() {
     if (!parsedCsv || !selectedDeal || !canImport) return
     setIsImporting(true)
+    const formData = new FormData()
+    formData.set("file", parsedCsv.file)
+    formData.set("fileName", parsedCsv.fileName)
+    formData.set("mapping", JSON.stringify(mapping))
+    formData.set("rows", JSON.stringify(parsedCsv.rows))
 
-    const response = await fetch(`/api/deals/${selectedDeal.id}/revenue/import`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        fileName: parsedCsv.fileName,
-        mapping,
-        rows: parsedCsv.rows,
-      }),
-    })
+    let response: Response
+    try {
+      response = await fetch(`/api/deals/${selectedDeal.id}/revenue/import`, {
+        method: "POST",
+        body: formData,
+      })
+    } catch (error) {
+      setIsImporting(false)
+      toast.error(error instanceof Error ? error.message : "Could not reach the import service.")
+      return
+    }
+
     const payload = await response.json().catch(() => ({}))
     setIsImporting(false)
 
