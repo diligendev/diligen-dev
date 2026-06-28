@@ -29,6 +29,25 @@ create table if not exists public.revenue_rows (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.revenue_views (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  deal_id uuid not null references public.deals(id) on delete cascade,
+  revenue_file_id uuid not null references public.revenue_files(id) on delete cascade,
+  name text not null,
+  period text not null check (period in ('Monthly', 'Quarterly', 'Annual')),
+  measure text not null check (measure in ('revenue', 'grossProfit', 'units', 'recurringRevenue')),
+  breakdowns jsonb not null default '[]'::jsonb,
+  result_cache jsonb not null,
+  result_generated_at timestamptz not null default now(),
+  source_row_count integer not null default 0 check (source_row_count >= 0),
+  source_date_range_start date null,
+  source_date_range_end date null,
+  created_by uuid null references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists revenue_files_org_deal_created_idx
   on public.revenue_files (organization_id, deal_id, created_at desc);
 
@@ -41,8 +60,12 @@ create index if not exists revenue_rows_org_deal_date_idx
 create index if not exists revenue_rows_file_idx
   on public.revenue_rows (revenue_file_id);
 
+create index if not exists revenue_views_org_deal_file_created_idx
+  on public.revenue_views (organization_id, deal_id, revenue_file_id, created_at desc);
+
 alter table public.revenue_files enable row level security;
 alter table public.revenue_rows enable row level security;
+alter table public.revenue_views enable row level security;
 
 drop policy if exists "revenue_files_select_org_members" on public.revenue_files;
 create policy "revenue_files_select_org_members"
@@ -70,6 +93,21 @@ create policy "revenue_rows_insert_org_members"
 on public.revenue_rows
 for insert
 with check (public.is_org_member(organization_id));
+
+drop policy if exists "revenue_views_select_org_members" on public.revenue_views;
+create policy "revenue_views_select_org_members"
+on public.revenue_views
+for select
+using (public.is_org_member(organization_id));
+
+drop policy if exists "revenue_views_insert_org_members" on public.revenue_views;
+create policy "revenue_views_insert_org_members"
+on public.revenue_views
+for insert
+with check (
+  public.is_org_member(organization_id)
+  and (created_by is null or created_by = auth.uid())
+);
 
 update storage.buckets
 set

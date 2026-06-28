@@ -185,18 +185,46 @@ export function parseRevenueDate(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return null
 
-  const nativeDate = new Date(trimmed)
-  if (!Number.isNaN(nativeDate.getTime())) {
-    return nativeDate.toISOString().slice(0, 10)
+  const isoDate = trimmed.match(/^((?:19|20)\d{2})-(\d{1,2})-(\d{1,2})$/)
+  if (isoDate) return makeDate(isoDate[1], isoDate[2], isoDate[3])
+
+  const slashDate = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/((?:19|20)?\d{2})$/)
+  if (slashDate) {
+    const year =
+      slashDate[3].length === 2 ? `20${slashDate[3]}` : slashDate[3]
+    return makeDate(year, slashDate[1], slashDate[2])
+  }
+
+  const dashDate = trimmed.match(/^(\d{1,2})-(\d{1,2})-((?:19|20)?\d{2})$/)
+  if (dashDate) {
+    const year = dashDate[3].length === 2 ? `20${dashDate[3]}` : dashDate[3]
+    return makeDate(year, dashDate[1], dashDate[2])
+  }
+
+  const monthYearNumeric = trimmed.match(/^(\d{1,2})\/((?:19|20)\d{2})$/)
+  if (monthYearNumeric) {
+    return makeDate(
+      monthYearNumeric[2],
+      monthYearNumeric[1],
+      String(daysInMonth(Number(monthYearNumeric[2]), Number(monthYearNumeric[1]))),
+    )
   }
 
   const yearOnly = trimmed.match(/^(19|20)\d{2}$/)
   if (yearOnly) return `${trimmed}-12-31`
 
-  const monthYear = trimmed.match(/^([A-Za-z]{3,9})[\s-]+((?:19|20)\d{2})$/)
+  const monthYear = trimmed.match(/^([A-Za-z]{3,9})[\s,-]+((?:19|20)\d{2})$/)
   if (monthYear) {
-    const date = new Date(`${monthYear[1]} 1, ${monthYear[2]}`)
-    if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10)
+    const month = monthNumber(monthYear[1])
+    if (month) return makeDate(monthYear[2], String(month), "1")
+  }
+
+  const monthDayYear = trimmed.match(
+    /^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+((?:19|20)\d{2})$/,
+  )
+  if (monthDayYear) {
+    const month = monthNumber(monthDayYear[1])
+    if (month) return makeDate(monthDayYear[3], String(month), monthDayYear[2])
   }
 
   return null
@@ -224,7 +252,17 @@ export function normalizeRevenueRows({
   const normalized: NormalizedRevenueRow[] = []
   let skippedRows = 0
 
-  rows.slice(0, maxRows).forEach((row, index) => {
+  if (rows.length > maxRows) {
+    return {
+      rows: [],
+      skippedRows: rows.length,
+      errors: [
+        `This file has ${rows.length.toLocaleString()} rows. Revenue Explorer currently supports up to ${maxRows.toLocaleString()} rows per import.`,
+      ],
+    }
+  }
+
+  rows.forEach((row, index) => {
     const customer = row[mapping.customer ?? ""]?.trim() ?? ""
     const date = parseRevenueDate(row[mapping.date ?? ""] ?? "")
     const revenue = parseNumber(row[mapping.revenue ?? ""] ?? "")
@@ -250,11 +288,52 @@ export function normalizeRevenueRows({
     })
   })
 
-  if (rows.length > maxRows) {
-    errors.push(`Only the first ${maxRows.toLocaleString()} rows were imported.`)
-  }
-
   return { rows: normalized, skippedRows, errors }
+}
+
+function makeDate(yearText: string, monthText: string, dayText: string) {
+  const year = Number(yearText)
+  const month = Number(monthText)
+  const day = Number(dayText)
+  if (!isValidDateParts(year, month, day)) return null
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+}
+
+function isValidDateParts(year: number, month: number, day: number) {
+  return (
+    Number.isInteger(year) &&
+    Number.isInteger(month) &&
+    Number.isInteger(day) &&
+    year >= 1900 &&
+    year <= 2099 &&
+    month >= 1 &&
+    month <= 12 &&
+    day >= 1 &&
+    day <= daysInMonth(year, month)
+  )
+}
+
+function daysInMonth(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate()
+}
+
+function monthNumber(value: string) {
+  const key = value.slice(0, 3).toLowerCase()
+  const months: Record<string, number> = {
+    jan: 1,
+    feb: 2,
+    mar: 3,
+    apr: 4,
+    may: 5,
+    jun: 6,
+    jul: 7,
+    aug: 8,
+    sep: 9,
+    oct: 10,
+    nov: 11,
+    dec: 12,
+  }
+  return months[key] ?? null
 }
 
 function optionalText(row: Record<string, string>, key: string | undefined) {

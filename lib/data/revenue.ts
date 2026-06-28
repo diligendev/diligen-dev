@@ -1,6 +1,12 @@
 import "server-only"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import type {
+  RevenueBreakdown,
+  RevenueMeasure,
+  RevenuePeriod,
+  RevenueViewAnalysis,
+} from "@/lib/revenue/analytics"
 import { createClient } from "@/lib/supabase/server"
 
 export type RevenueRow = {
@@ -24,6 +30,23 @@ export type RevenueFile = {
   documentId: string | null
   fileName: string
   rowCount: number
+  createdAt: string
+  savedViewCount: number
+}
+
+export type RevenueView = {
+  id: string
+  dealId: string
+  revenueFileId: string
+  name: string
+  period: RevenuePeriod
+  measure: RevenueMeasure
+  breakdowns: RevenueBreakdown[]
+  analysis: RevenueViewAnalysis
+  resultGeneratedAt: string
+  sourceRowCount: number
+  sourceDateRangeStart: string | null
+  sourceDateRangeEnd: string | null
   createdAt: string
 }
 
@@ -51,6 +74,22 @@ type RevenueFileRecord = {
   created_at: string
 }
 
+type RevenueViewRecord = {
+  id: string
+  deal_id: string
+  revenue_file_id: string
+  name: string
+  period: string
+  measure: string
+  breakdowns: unknown
+  result_cache: unknown
+  result_generated_at: string
+  source_row_count: number
+  source_date_range_start: string | null
+  source_date_range_end: string | null
+  created_at: string
+}
+
 const REVENUE_ROW_PAGE_SIZE = 1000
 const MAX_REVENUE_ROWS_PER_DEAL = 25000
 
@@ -60,7 +99,10 @@ function toNumber(value: number | string | null) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function toRevenueFile(file: RevenueFileRecord): RevenueFile {
+function toRevenueFile(
+  file: RevenueFileRecord,
+  savedViewCounts: Map<string, number> = new Map(),
+): RevenueFile {
   return {
     id: file.id,
     dealId: file.deal_id,
@@ -68,6 +110,7 @@ function toRevenueFile(file: RevenueFileRecord): RevenueFile {
     fileName: file.file_name,
     rowCount: file.row_count,
     createdAt: file.created_at,
+    savedViewCount: savedViewCounts.get(file.id) ?? 0,
   }
 }
 
@@ -85,6 +128,26 @@ function toRevenueRow(row: RevenueRowRecord): RevenueRow {
     grossProfit: toNumber(row.gross_profit),
     units: toNumber(row.units),
     recurringRevenue: toNumber(row.recurring_revenue),
+  }
+}
+
+function toRevenueView(row: RevenueViewRecord): RevenueView {
+  return {
+    id: row.id,
+    dealId: row.deal_id,
+    revenueFileId: row.revenue_file_id,
+    name: row.name,
+    period: row.period as RevenuePeriod,
+    measure: row.measure as RevenueMeasure,
+    breakdowns: Array.isArray(row.breakdowns)
+      ? (row.breakdowns as RevenueBreakdown[])
+      : [],
+    analysis: row.result_cache as RevenueViewAnalysis,
+    resultGeneratedAt: row.result_generated_at,
+    sourceRowCount: row.source_row_count,
+    sourceDateRangeStart: row.source_date_range_start,
+    sourceDateRangeEnd: row.source_date_range_end,
+    createdAt: row.created_at,
   }
 }
 
@@ -139,7 +202,7 @@ export async function getCurrentOrganizationRevenueExplorerData(dealId?: string)
 
   if (!dealId) {
     return {
-      files: (files ?? []).map(toRevenueFile),
+      files: (files ?? []).map((file) => toRevenueFile(file)),
       rows: [],
     }
   }
@@ -151,7 +214,7 @@ export async function getCurrentOrganizationRevenueExplorerData(dealId?: string)
   }
 
   return {
-    files: (files ?? []).map(toRevenueFile),
+    files: (files ?? []).map((file) => toRevenueFile(file)),
     rows: (rows ?? []).map(toRevenueRow),
   }
 }
@@ -176,7 +239,41 @@ export async function getCurrentOrganizationRevenueFiles(dealId: string) {
     throw new Error(error.message)
   }
 
-  return (data ?? []).map(toRevenueFile)
+  const savedViewCounts = await getRevenueViewCounts({
+    organizationId: context.organization.id,
+    dealId,
+  })
+
+  return (data ?? []).map((file) => toRevenueFile(file, savedViewCounts))
+}
+
+async function getRevenueViewCounts({
+  organizationId,
+  dealId,
+}: {
+  organizationId: string
+  dealId: string
+}) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("revenue_views")
+    .select("revenue_file_id")
+    .eq("organization_id", organizationId)
+    .eq("deal_id", dealId)
+    .returns<Array<{ revenue_file_id: string }>>()
+
+  if (error) {
+    if (/revenue_views|schema cache|does not exist/i.test(error.message)) {
+      return new Map<string, number>()
+    }
+    throw new Error(error.message)
+  }
+
+  const counts = new Map<string, number>()
+  for (const view of data ?? []) {
+    counts.set(view.revenue_file_id, (counts.get(view.revenue_file_id) ?? 0) + 1)
+  }
+  return counts
 }
 
 export async function getCurrentOrganizationRevenueFileDetail({
@@ -244,4 +341,36 @@ export async function getCurrentOrganizationRevenueFileDetail({
     file: toRevenueFile(file),
     rows: rows.map(toRevenueRow),
   }
+}
+
+export async function getCurrentOrganizationRevenueViews({
+  dealId,
+  revenueFileId,
+}: {
+  dealId: string
+  revenueFileId: string
+}) {
+  const context = await getCurrentUserContext()
+  if (!context || !hasWorkspace(context)) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("revenue_views")
+    .select(
+      "id,deal_id,revenue_file_id,name,period,measure,breakdowns,result_cache,result_generated_at,source_row_count,source_date_range_start,source_date_range_end,created_at",
+    )
+    .eq("organization_id", context.organization.id)
+    .eq("deal_id", dealId)
+    .eq("revenue_file_id", revenueFileId)
+    .order("created_at", { ascending: false })
+    .returns<RevenueViewRecord[]>()
+
+  if (error) {
+    if (/revenue_views|schema cache|does not exist/i.test(error.message)) {
+      return []
+    }
+    throw new Error(error.message)
+  }
+
+  return (data ?? []).map(toRevenueView)
 }

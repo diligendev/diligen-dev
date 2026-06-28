@@ -2,13 +2,16 @@
 
 import { useMemo, useState, type ReactNode } from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import {
   ArrowLeft,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Download,
   FileSpreadsheet,
+  Loader2,
   Plus,
   X,
 } from "lucide-react"
@@ -28,13 +31,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { RevenueFile, RevenueRow } from "@/lib/data/revenue"
+import type {
+  RevenueFile,
+  RevenueRow,
+  RevenueView as SavedRevenueView,
+} from "@/lib/data/revenue"
 import type { Deal } from "@/lib/mock-data"
+import {
+  BREAKDOWN_OPTIONS,
+  MEASURE_OPTIONS,
+  PERIOD_OPTIONS,
+  getAvailableBreakdowns,
+  getAvailableMeasures,
+  hasGrowthPeriods,
+  labelForBreakdown,
+  labelForMeasure,
+  type BridgeColumn,
+  type ConcentrationTable,
+  type PivotTable,
+  type RevenueBreakdown,
+  type RevenueMeasure,
+  type RevenuePeriod,
+  type RevenueViewAnalysis,
+} from "@/lib/revenue/analytics"
 import { cn } from "@/lib/utils"
-
-type RevenuePeriod = "Monthly" | "Quarterly" | "Annual"
-type RevenueMeasure = "revenue" | "grossProfit" | "units" | "recurringRevenue"
-type RevenueBreakdown = "customer" | "product" | "channel"
 
 type RevenueView = {
   id: string
@@ -43,60 +63,64 @@ type RevenueView = {
   period?: RevenuePeriod
   measure?: RevenueMeasure
   breakdowns?: RevenueBreakdown[]
+  analysis?: RevenueViewAnalysis
+  resultGeneratedAt?: string
+  sourceRowCount?: number
+  sourceDateRangeStart?: string | null
+  sourceDateRangeEnd?: string | null
+  saved?: boolean
+  isSaving?: boolean
 }
 
-type PivotTable = {
-  periods: string[]
-  rows: { label: string; values: number[] }[]
-  totals: number[]
+type RevenueViewPreview = {
+  name: string | null
+  period: RevenuePeriod
+  measure: RevenueMeasure
+  breakdowns: RevenueBreakdown[]
+  analysis: RevenueViewAnalysis
+  resultGeneratedAt: string
+  sourceRowCount: number
+  sourceDateRangeStart: string | null
+  sourceDateRangeEnd: string | null
 }
 
-type BridgeColumn = {
-  period: string
-  beginning: number
-  increases: { label: string; delta: number }[]
-  decreases: { label: string; delta: number }[]
-  ending: number
-}
-
-type ConcentrationTable = {
-  periods: string[]
-  tiers: { label: string; values: number[] }[]
-  totals: number[]
+type SavedRevenueViewResponse = RevenueViewPreview & {
+  id: string
+  name: string
 }
 
 const RAW_VIEW_ID = "raw-table"
-const PERIOD_OPTIONS: RevenuePeriod[] = ["Monthly", "Quarterly", "Annual"]
-
-const MEASURE_OPTIONS: Array<{ key: RevenueMeasure; label: string }> = [
-  { key: "revenue", label: "Revenue" },
-  { key: "grossProfit", label: "Gross Profit" },
-  { key: "units", label: "Units" },
-  { key: "recurringRevenue", label: "Recurring Revenue" },
-]
-
-const BREAKDOWN_OPTIONS: Array<{ key: RevenueBreakdown; label: string }> = [
-  { key: "customer", label: "Customer" },
-  { key: "product", label: "Product" },
-  { key: "channel", label: "Channel" },
-]
-
-const CONCENTRATION_THRESHOLDS = [3, 5, 10, 25, 50] as const
 
 export function RevenueExplorationDetail({
   deal,
   file,
   rows,
+  savedViews,
 }: {
   deal: Deal
   file: RevenueFile
   rows: RevenueRow[]
+  savedViews: SavedRevenueView[]
 }) {
   const [views, setViews] = useState<RevenueView[]>([
     { id: RAW_VIEW_ID, name: "Raw Table", isRaw: true },
+    ...savedViews.map((view) => ({
+      id: view.id,
+      name: view.name,
+      period: view.period,
+      measure: view.measure,
+      breakdowns: view.breakdowns,
+      analysis: reviveAnalysis(view.analysis),
+      resultGeneratedAt: view.resultGeneratedAt,
+      sourceRowCount: view.sourceRowCount,
+      sourceDateRangeStart: view.sourceDateRangeStart,
+      sourceDateRangeEnd: view.sourceDateRangeEnd,
+      saved: true,
+    })),
   ])
   const [activeViewId, setActiveViewId] = useState(RAW_VIEW_ID)
   const [createOpen, setCreateOpen] = useState(false)
+  const [saveError, setSaveError] = useState("")
 
   const activeView = views.find((view) => view.id === activeViewId) ?? views[0]
   const totalRevenue = useMemo(
@@ -106,11 +130,43 @@ export function RevenueExplorationDetail({
   const availableMeasures = useMemo(() => getAvailableMeasures(rows), [rows])
   const availableBreakdowns = useMemo(() => getAvailableBreakdowns(rows), [rows])
 
-  function handleCreateView(view: Omit<RevenueView, "id" | "isRaw">) {
+  async function handleCreateView(view: Omit<RevenueView, "id" | "isRaw" | "analysis">) {
+    const response = await fetch(
+      `/api/deals/${deal.id}/revenue/${file.id}/views/preview`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: view.name,
+          period: view.period,
+          measure: view.measure,
+          breakdowns: view.breakdowns,
+        }),
+      },
+    )
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(payload.error ?? "Could not generate revenue view.")
+    }
+
+    const preview = parsePreviewPayload(payload.preview)
+    if (!preview) throw new Error("Revenue view preview was invalid.")
+
     const generatedCount = views.filter((item) => !item.isRaw).length
     const nextView: RevenueView = {
       id: `generated-view-${generatedCount + 1}`,
       ...view,
+      name: preview.name || view.name,
+      period: preview.period,
+      measure: preview.measure,
+      breakdowns: preview.breakdowns,
+      analysis: reviveAnalysis(preview.analysis),
+      resultGeneratedAt: preview.resultGeneratedAt,
+      sourceRowCount: preview.sourceRowCount,
+      sourceDateRangeStart: preview.sourceDateRangeStart,
+      sourceDateRangeEnd: preview.sourceDateRangeEnd,
+      saved: false,
     }
 
     setViews((current) => [...current, nextView])
@@ -124,7 +180,74 @@ export function RevenueExplorationDetail({
       return
     }
 
-    downloadGeneratedView(rows, activeView)
+    downloadGeneratedView(activeView)
+  }
+
+  async function handleSaveView(view: RevenueView) {
+    if (view.isRaw || view.saved || view.isSaving) return
+
+    setSaveError("")
+    setViews((current) =>
+      current.map((item) =>
+        item.id === view.id ? { ...item, isSaving: true } : item,
+      ),
+    )
+
+    try {
+      const response = await fetch(
+        `/api/deals/${deal.id}/revenue/${file.id}/views`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: view.name,
+            period: view.period,
+            measure: view.measure,
+            breakdowns: view.breakdowns,
+          }),
+        },
+      )
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not save revenue view.")
+      }
+
+      const saved = parseSavedViewPayload(payload.view)
+      if (!saved) throw new Error("Saved revenue view response was invalid.")
+
+      setViews((current) =>
+        current.map((item) =>
+          item.id === view.id
+            ? {
+                ...item,
+                id: saved.id,
+                name: saved.name,
+                period: saved.period,
+                measure: saved.measure,
+                breakdowns: saved.breakdowns,
+                analysis: reviveAnalysis(saved.analysis),
+                resultGeneratedAt: saved.resultGeneratedAt,
+                sourceRowCount: saved.sourceRowCount,
+                sourceDateRangeStart: saved.sourceDateRangeStart,
+                sourceDateRangeEnd: saved.sourceDateRangeEnd,
+                saved: true,
+                isSaving: false,
+              }
+            : item,
+        ),
+      )
+      setActiveViewId(saved.id)
+      toast.success("View saved")
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : "Could not save revenue view.",
+      )
+      setViews((current) =>
+        current.map((item) =>
+          item.id === view.id ? { ...item, isSaving: false } : item,
+        ),
+      )
+    }
   }
 
   return (
@@ -172,6 +295,8 @@ export function RevenueExplorationDetail({
                   <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                     Base
                   </span>
+                ) : view.saved ? (
+                  <CheckCircle2 className="size-3.5 text-accent" />
                 ) : null}
               </button>
             ))}
@@ -216,22 +341,47 @@ export function RevenueExplorationDetail({
                   <span>Imported {formatDate(file.createdAt)}</span>
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                onClick={handleExport}
-                className="h-8 rounded bg-accent px-3 text-[12px] text-accent-foreground hover:bg-accent/90"
-              >
-                <Download data-icon="inline-start" />
-                Export
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={handleExport}
+                  className="h-8 rounded bg-accent px-3 text-[12px] text-accent-foreground hover:bg-accent/90"
+                >
+                  <Download data-icon="inline-start" />
+                  Export
+                </Button>
+                {!activeView.isRaw && !activeView.saved ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleSaveView(activeView)}
+                    disabled={activeView.isSaving}
+                    className="h-8 rounded border-border px-3 text-[12px]"
+                  >
+                    {activeView.isSaving ? (
+                      <Loader2 data-icon="inline-start" className="animate-spin" />
+                    ) : (
+                      <Check data-icon="inline-start" />
+                    )}
+                    Save View
+                  </Button>
+                ) : null}
+              </div>
             </div>
+
+            {saveError ? (
+              <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-[12px] text-red-700">
+                {saveError}
+              </div>
+            ) : null}
 
             {activeView.isRaw ? (
               <RawRevenueTable rows={rows} />
             ) : (
-              <GeneratedRevenueView rows={rows} view={activeView} />
+              <GeneratedRevenueView view={activeView} />
             )}
           </section>
         </main>
@@ -259,12 +409,14 @@ function GenerateRevenueViewDialog({
   onOpenChange: (open: boolean) => void
   availableMeasures: RevenueMeasure[]
   availableBreakdowns: RevenueBreakdown[]
-  onCreate: (view: Omit<RevenueView, "id" | "isRaw">) => void
+  onCreate: (view: Omit<RevenueView, "id" | "isRaw" | "analysis">) => Promise<void>
 }) {
   const [name, setName] = useState("")
   const [period, setPeriod] = useState<RevenuePeriod>("Monthly")
   const [measure, setMeasure] = useState<RevenueMeasure>("revenue")
   const [breakdowns, setBreakdowns] = useState<RevenueBreakdown[]>(["customer"])
+  const [isCreating, setIsCreating] = useState(false)
+  const [error, setError] = useState("")
 
   const measureOptions = MEASURE_OPTIONS.filter((option) =>
     availableMeasures.includes(option.key),
@@ -282,23 +434,35 @@ function GenerateRevenueViewDialog({
     )
   }
 
-  function handleCreate() {
-    if (!canCreate) return
+  async function handleCreate() {
+    if (!canCreate || isCreating) return
     const autoName = `${labelForMeasure(measure)} by ${breakdowns
       .map(labelForBreakdown)
       .join(", ")}`
 
-    onCreate({
-      name: name.trim() || autoName,
-      period,
-      measure,
-      breakdowns,
-    })
+    setIsCreating(true)
+    setError("")
+    try {
+      await onCreate({
+        name: name.trim() || autoName,
+        period,
+        measure,
+        breakdowns,
+      })
 
-    setName("")
-    setPeriod("Monthly")
-    setMeasure("revenue")
-    setBreakdowns(["customer"])
+      setName("")
+      setPeriod("Monthly")
+      setMeasure("revenue")
+      setBreakdowns(["customer"])
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Could not generate revenue view.",
+      )
+    } finally {
+      setIsCreating(false)
+    }
   }
 
   return (
@@ -391,6 +555,12 @@ function GenerateRevenueViewDialog({
               })}
             </div>
           </Field>
+
+          {error ? (
+            <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">
+              {error}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3.5">
@@ -404,10 +574,11 @@ function GenerateRevenueViewDialog({
           </Button>
           <Button
             size="sm"
-            disabled={!canCreate}
-            onClick={handleCreate}
+            disabled={!canCreate || isCreating}
+            onClick={() => void handleCreate()}
             className="h-8 rounded-sm bg-accent px-4 text-[13px] text-accent-foreground hover:bg-accent/90"
           >
+            {isCreating ? <Loader2 data-icon="inline-start" className="animate-spin" /> : null}
             New View
           </Button>
         </div>
@@ -425,13 +596,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function GeneratedRevenueView({
-  rows,
-  view,
-}: {
-  rows: RevenueRow[]
-  view: RevenueView
-}) {
+function GeneratedRevenueView({ view }: { view: RevenueView }) {
   const [open, setOpen] = useState<Record<string, boolean>>({ Values: true })
   const period = view.period ?? "Monthly"
   const measure = view.measure ?? "revenue"
@@ -439,26 +604,15 @@ function GeneratedRevenueView({
     () => (view.breakdowns?.length ? view.breakdowns : ["customer"]),
     [view.breakdowns],
   )
+  const analysis = view.analysis
 
-  const analysis = useMemo(() => {
-    const pivot = buildPivot(rows, period, measure, breakdowns)
-    const percentTotal = toPercentTotal(pivot)
-    const growth = toGrowth(pivot, period)
-    const bridge = buildBridge(pivot)
-    const concentration = buildConcentration(rows, period, measure)
-    const concentrationPercent = toConcentrationPercent(concentration)
-    const concentrationGrowth = toConcentrationGrowth(concentration, period)
-    return {
-      pivot,
-      percentTotal,
-      growth,
-      bridge,
-      concentration,
-      concentrationPercent,
-      concentrationGrowth,
-    }
-  }, [rows, period, measure, breakdowns])
-
+  if (!analysis) {
+    return (
+      <div className="p-4 text-[13px] text-muted-foreground">
+        This generated view does not have a server preview yet.
+      </div>
+    )
+  }
   const hasComparablePeriods = hasGrowthPeriods(analysis.pivot.periods, period)
   const sections = [
     "Values",
@@ -484,6 +638,18 @@ function GeneratedRevenueView({
           {labelForMeasure(measure)} by{" "}
           {breakdowns.map(labelForBreakdown).join(", ")}
         </span>
+        {view.resultGeneratedAt ? (
+          <>
+            <span aria-hidden="true">-</span>
+            <span>Generated {formatDateTime(view.resultGeneratedAt)}</span>
+          </>
+        ) : null}
+        {view.sourceRowCount ? (
+          <>
+            <span aria-hidden="true">-</span>
+            <span>{view.sourceRowCount.toLocaleString()} source rows</span>
+          </>
+        ) : null}
         </div>
       </div>
 
@@ -900,257 +1066,85 @@ function RawRevenueTable({ rows }: { rows: RevenueRow[] }) {
   )
 }
 
-function getAvailableMeasures(rows: RevenueRow[]): RevenueMeasure[] {
-  const measures: RevenueMeasure[] = ["revenue"]
-  if (rows.some((row) => hasMeaningfulNumber(row.grossProfit))) {
-    measures.push("grossProfit")
-  }
-  if (rows.some((row) => hasMeaningfulNumber(row.units))) measures.push("units")
-  if (rows.some((row) => hasMeaningfulNumber(row.recurringRevenue))) {
-    measures.push("recurringRevenue")
-  }
-  return measures
-}
-
-function hasMeaningfulNumber(value: number | null) {
-  return value != null && Number.isFinite(value) && value !== 0
-}
-
-function getAvailableBreakdowns(rows: RevenueRow[]): RevenueBreakdown[] {
-  const breakdowns: RevenueBreakdown[] = ["customer"]
-  if (rows.some((row) => row.product)) breakdowns.push("product")
-  if (rows.some((row) => row.channel)) breakdowns.push("channel")
-  return breakdowns
-}
-
-function buildPivot(
-  rows: RevenueRow[],
-  period: RevenuePeriod,
-  measure: RevenueMeasure,
-  breakdowns: RevenueBreakdown[],
-): PivotTable {
-  const periods = periodColumns(rows, period)
-  const grouped = new Map<string, number[]>()
-
-  for (const row of rows) {
-    const label = breakdowns.map((field) => breakdownValue(row, field)).join(" / ")
-    if (!grouped.has(label)) grouped.set(label, new Array(periods.length).fill(0))
-    const index = periods.indexOf(periodKey(row.date, period))
-    grouped.get(label)![index] += measureValue(row, measure)
-  }
-
-  const pivotRows = [...grouped.entries()]
-    .map(([label, values]) => ({ label, values }))
-    .sort((a, b) => sum(b.values) - sum(a.values))
-
-  const totals = periods.map((_, index) =>
-    pivotRows.reduce((total, row) => total + row.values[index], 0),
-  )
-
-  return { periods, rows: pivotRows, totals }
-}
-
-function toPercentTotal(pivot: PivotTable): PivotTable {
-  return {
-    periods: pivot.periods,
-    rows: pivot.rows.map((row) => ({
-      label: row.label,
-      values: row.values.map((value, index) =>
-        pivot.totals[index] ? (value / pivot.totals[index]) * 100 : Number.NaN,
-      ),
-    })),
-    totals: pivot.totals.map((value) => (value ? 100 : Number.NaN)),
-  }
-}
-
-function toGrowth(pivot: PivotTable, period: RevenuePeriod): PivotTable {
-  const lag = growthLag(period)
-  const growthValues = (values: number[]) =>
-    values.map((value, index) => {
-      if (index < lag) return Number.NaN
-      const prior = values[index - lag]
-      if (!prior) return Number.NaN
-      return ((value - prior) / prior) * 100
-    })
-
-  return {
-    periods: pivot.periods,
-    rows: pivot.rows.map((row) => ({
-      label: row.label,
-      values: growthValues(row.values),
-    })),
-    totals: growthValues(pivot.totals),
-  }
-}
-
-function buildBridge(pivot: PivotTable): BridgeColumn[] {
-  const columns: BridgeColumn[] = []
-  for (let index = 1; index < pivot.periods.length; index++) {
-    const increases: { label: string; delta: number }[] = []
-    const decreases: { label: string; delta: number }[] = []
-    for (const row of pivot.rows) {
-      const delta = row.values[index] - row.values[index - 1]
-      if (delta >= 0) increases.push({ label: row.label, delta })
-      else decreases.push({ label: row.label, delta })
-    }
-
-    columns.push({
-      period: `${pivot.periods[index - 1]} to ${pivot.periods[index]}`,
-      beginning: pivot.totals[index - 1],
-      increases: increases.sort((a, b) => b.delta - a.delta),
-      decreases: decreases.sort((a, b) => a.delta - b.delta),
-      ending: pivot.totals[index],
-    })
-  }
-  return columns
-}
-
-function buildConcentration(
-  rows: RevenueRow[],
-  period: RevenuePeriod,
-  measure: RevenueMeasure,
-): ConcentrationTable {
-  const periods = periodColumns(rows, period)
-  const byCustomer = new Map<string, number[]>()
-
-  for (const row of rows) {
-    const customer = breakdownValue(row, "customer")
-    if (!byCustomer.has(customer)) {
-      byCustomer.set(customer, new Array(periods.length).fill(0))
-    }
-    const index = periods.indexOf(periodKey(row.date, period))
-    byCustomer.get(customer)![index] += measureValue(row, measure)
-  }
-
-  const ranked = [...byCustomer.entries()]
-    .map(([label, values]) => ({ label, values, total: sum(values) }))
-    .sort((a, b) => b.total - a.total)
-
-  const totals = periods.map((_, index) =>
-    ranked.reduce((total, customer) => total + customer.values[index], 0),
-  )
-  const customerCount = ranked.length
-  const thresholds = CONCENTRATION_THRESHOLDS.filter((count) => count < customerCount)
-  const tiers: { label: string; values: number[] }[] = thresholds.map((count) => ({
-    label: `Top ${count} customers`,
-    values: periods.map((_, index) =>
-      ranked.slice(0, count).reduce((total, row) => total + row.values[index], 0),
-    ),
-  }))
-
-  const largest = thresholds[thresholds.length - 1]
-  if (largest !== undefined) {
-    tiers.push({
-      label: "All Others",
-      values: periods.map((_, index) => {
-        const top = ranked
-          .slice(0, largest)
-          .reduce((total, row) => total + row.values[index], 0)
-        return Math.max(0, totals[index] - top)
-      }),
-    })
-  }
-
-  tiers.push({ label: "Total", values: totals })
-
-  return { periods, tiers, totals }
-}
-
-function toConcentrationPercent(table: ConcentrationTable): ConcentrationTable {
-  return {
-    periods: table.periods,
-    tiers: table.tiers.map((tier) => ({
-      label: tier.label,
-      values: tier.values.map((value, index) =>
-        table.totals[index] ? (value / table.totals[index]) * 100 : Number.NaN,
-      ),
-    })),
-    totals: table.totals.map((value) => (value ? 100 : Number.NaN)),
-  }
-}
-
-function toConcentrationGrowth(
-  table: ConcentrationTable,
-  period: RevenuePeriod,
-): ConcentrationTable {
-  const lag = growthLag(period)
-  const growthValues = (values: number[]) =>
-    values.map((value, index) => {
-      if (index < lag) return Number.NaN
-      const prior = values[index - lag]
-      if (!prior) return Number.NaN
-      return ((value - prior) / prior) * 100
-    })
-
-  return {
-    periods: table.periods,
-    tiers: table.tiers.map((tier) => ({
-      label: tier.label,
-      values: growthValues(tier.values),
-    })),
-    totals: growthValues(table.totals),
-  }
-}
-
-function periodColumns(rows: RevenueRow[], period: RevenuePeriod) {
-  return [...new Set(rows.map((row) => periodKey(row.date, period)))].sort()
-}
-
-function periodKey(date: string, period: RevenuePeriod) {
-  const year = date.slice(0, 4)
-  if (period === "Annual") return year
-  const month = Number(date.slice(5, 7))
-  if (period === "Quarterly") {
-    const quarter = Math.floor((month - 1) / 3) + 1
-    return `${year} Q${quarter}`
-  }
-  return date.slice(0, 7)
-}
-
-function growthLag(period: RevenuePeriod) {
-  if (period === "Monthly") return 12
-  if (period === "Quarterly") return 4
-  return 1
-}
-
-function hasGrowthPeriods(periods: string[], period: RevenuePeriod) {
-  return periods.length > growthLag(period)
-}
-
-function measureValue(row: RevenueRow, measure: RevenueMeasure) {
-  if (measure === "revenue") return row.revenue
-  if (measure === "grossProfit") return row.grossProfit ?? 0
-  if (measure === "units") return row.units ?? 0
-  return row.recurringRevenue ?? 0
-}
-
-function breakdownValue(row: RevenueRow, breakdown: RevenueBreakdown) {
-  if (breakdown === "customer") return row.customer || "Unmapped Customer"
-  if (breakdown === "product") return row.product || "Unmapped Product"
-  return row.channel || "Unmapped Channel"
-}
-
-function labelForMeasure(measure: RevenueMeasure) {
-  return MEASURE_OPTIONS.find((option) => option.key === measure)?.label ?? measure
-}
-
-function labelForBreakdown(breakdown: RevenueBreakdown) {
-  return (
-    BREAKDOWN_OPTIONS.find((option) => option.key === breakdown)?.label ??
-    breakdown
-  )
-}
-
-function sum(values: number[]) {
-  return values.reduce((total, value) => total + value, 0)
-}
-
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   })
+}
+
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
+function parsePreviewPayload(value: unknown): RevenueViewPreview | null {
+  if (!value || typeof value !== "object") return null
+  const preview = value as Partial<RevenueViewPreview>
+  if (
+    typeof preview.period !== "string" ||
+    typeof preview.measure !== "string" ||
+    !Array.isArray(preview.breakdowns) ||
+    !preview.analysis ||
+    typeof preview.resultGeneratedAt !== "string" ||
+    typeof preview.sourceRowCount !== "number"
+  ) {
+    return null
+  }
+
+  return {
+    name: typeof preview.name === "string" ? preview.name : null,
+    period: preview.period,
+    measure: preview.measure,
+    breakdowns: preview.breakdowns,
+    analysis: preview.analysis,
+    resultGeneratedAt: preview.resultGeneratedAt,
+    sourceRowCount: preview.sourceRowCount,
+    sourceDateRangeStart:
+      typeof preview.sourceDateRangeStart === "string"
+        ? preview.sourceDateRangeStart
+        : null,
+    sourceDateRangeEnd:
+      typeof preview.sourceDateRangeEnd === "string"
+        ? preview.sourceDateRangeEnd
+        : null,
+  }
+}
+
+function parseSavedViewPayload(value: unknown): SavedRevenueViewResponse | null {
+  const preview = parsePreviewPayload(value)
+  if (!preview || !value || typeof value !== "object") return null
+  const saved = value as Partial<SavedRevenueViewResponse>
+  if (typeof saved.id !== "string" || typeof saved.name !== "string") {
+    return null
+  }
+
+  return {
+    ...preview,
+    id: saved.id,
+    name: saved.name,
+  }
+}
+
+function reviveAnalysis(analysis: RevenueViewAnalysis): RevenueViewAnalysis {
+  return reviveNullNumbers(analysis) as RevenueViewAnalysis
+}
+
+function reviveNullNumbers(value: unknown): unknown {
+  if (value === null) return Number.NaN
+  if (Array.isArray(value)) return value.map(reviveNullNumbers)
+  if (typeof value === "object" && value) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, reviveNullNumbers(item)]),
+    )
+  }
+  return value
 }
 
 function fmtCurrency(value: number) {
@@ -1235,28 +1229,20 @@ function downloadRevenueRows(rows: RevenueRow[]) {
   downloadCsv("normalized-revenue-rows.csv", csv)
 }
 
-function downloadGeneratedView(rows: RevenueRow[], view: RevenueView) {
-  const period = view.period ?? "Monthly"
-  const measure = view.measure ?? "revenue"
-  const breakdowns: RevenueBreakdown[] = view.breakdowns?.length
-    ? view.breakdowns
-    : ["customer"]
-  const pivot = buildPivot(rows, period, measure, breakdowns)
-  const percent = toPercentTotal(pivot)
-  const growth = toGrowth(pivot, period)
-  const bridge = buildBridge(pivot)
-  const concentration = buildConcentration(rows, period, measure)
-  const concentrationPercent = toConcentrationPercent(concentration)
-  const concentrationGrowth = toConcentrationGrowth(concentration, period)
+function downloadGeneratedView(view: RevenueView) {
+  if (!view.analysis) return
 
   const sections: Array<Array<Array<string | number>>> = [
-    [["Values"], ...pivotToRows(pivot)],
-    [["Percent Total"], ...pivotToRows(percent)],
-    [["Period Growth"], ...pivotToRows(growth)],
-    [["Bridge Analysis"], ...bridgeToRows(bridge)],
-    [["Concentration Analysis"], ...concentrationToRows(concentration)],
-    [["Concentration Percent Total"], ...concentrationToRows(concentrationPercent)],
-    [["Concentration Growth"], ...concentrationToRows(concentrationGrowth)],
+    [["Values"], ...pivotToRows(view.analysis.pivot)],
+    [["Percent Total"], ...pivotToRows(view.analysis.percentTotal)],
+    [["Period Growth"], ...pivotToRows(view.analysis.growth)],
+    [["Bridge Analysis"], ...bridgeToRows(view.analysis.bridge)],
+    [["Concentration Analysis"], ...concentrationToRows(view.analysis.concentration)],
+    [
+      ["Concentration Percent Total"],
+      ...concentrationToRows(view.analysis.concentrationPercent),
+    ],
+    [["Concentration Growth"], ...concentrationToRows(view.analysis.concentrationGrowth)],
   ]
 
   const csv = sections

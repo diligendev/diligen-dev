@@ -154,6 +154,9 @@ export function AnalysisView({
     !!parsedCsv &&
     !!selectedDeal &&
     requiredMappingsComplete &&
+    !!normalizedImport &&
+    normalizedImport.rows.length > 0 &&
+    !hasBlockingNormalizeError(normalizedImport) &&
     !isImporting
 
   function selectDeal(value: string) {
@@ -196,7 +199,6 @@ export function AnalysisView({
     formData.set("file", parsedCsv.file)
     formData.set("fileName", parsedCsv.fileName)
     formData.set("mapping", JSON.stringify(mapping))
-    formData.set("rows", JSON.stringify(parsedCsv.rows))
 
     let response: Response
     try {
@@ -578,8 +580,8 @@ function RevenueAnalysisCreateFlow({
 
           {parsedCsv && !canImport && (
             <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800">
-              Match Customer, Date, and Revenue before reviewing or saving this
-              analysis.
+              {normalizedImport?.errors[0] ??
+                "Match Customer, Date, and Revenue before reviewing or saving this analysis."}
             </div>
           )}
 
@@ -1041,4 +1043,10 @@ function fmtCurrency(value: number) {
 
 function fmtPercent(value: number) {
   return `${(value * 100).toFixed(1)}%`
+}
+
+function hasBlockingNormalizeError(result: NormalizeResult) {
+  return result.errors.some((error) =>
+    /currently supports up to|missing required mappings/i.test(error),
+  )
 }

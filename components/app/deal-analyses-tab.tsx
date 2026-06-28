@@ -216,6 +216,11 @@ function DealRevenueExplorerSummary({
                         {file.rowCount.toLocaleString()} rows -{" "}
                         {formatRevenueFileDate(file.createdAt)}
                       </span>
+                      <span className="mt-1 inline-flex items-center gap-1 rounded border border-border bg-secondary/40 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                        <CheckCircle2 className="size-3 text-accent" />
+                        {file.savedViewCount.toLocaleString()}{" "}
+                        {file.savedViewCount === 1 ? "view" : "views"}
+                      </span>
                     </span>
                   </span>
                   <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" />
