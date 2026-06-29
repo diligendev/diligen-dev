@@ -1,7 +1,9 @@
 import { TrendAnalyzerView } from "@/components/app/trend-analyzer-view"
-import { deals } from "@/lib/mock-data"
-
-const DEFAULT_DEAL = "meridian-logistics"
+import { getCurrentOrganizationDeals } from "@/lib/data/deals"
+import {
+  buildTrendInsights,
+  getCurrentOrganizationTrendData,
+} from "@/lib/data/trends"
 
 export default async function TrendAnalyzerPage({
   searchParams,
@@ -9,12 +11,34 @@ export default async function TrendAnalyzerPage({
   searchParams: Promise<{ deal?: string }>
 }) {
   const { deal } = await searchParams
-  // Honor a deep-linked deal (e.g. from a deal's "Open trend analyzer" action),
-  // falling back to the default when absent or unknown.
-  const dealId =
-    deal && deals.some((d) => d.id === deal && d.status === "Complete")
+  const deals = await getCurrentOrganizationDeals()
+  const initialDealId =
+    deal && deals.some((item) => item.id === deal)
       ? deal
-      : DEFAULT_DEAL
+      : deals[0]?.id ?? ""
 
-  return <TrendAnalyzerView dealId={dealId} />
+  const trendEntries = await Promise.all(
+    deals.map(async (item) => {
+      const trendData = await getCurrentOrganizationTrendData(item.id)
+      const trendInsights = buildTrendInsights(trendData)
+
+      return [item.id, { trendData, trendInsights }] as const
+    }),
+  )
+
+  const trendDataByDeal = Object.fromEntries(
+    trendEntries.map(([dealId, data]) => [dealId, data.trendData]),
+  )
+  const trendInsightsByDeal = Object.fromEntries(
+    trendEntries.map(([dealId, data]) => [dealId, data.trendInsights]),
+  )
+
+  return (
+    <TrendAnalyzerView
+      initialDealId={initialDealId}
+      deals={deals}
+      trendDataByDeal={trendDataByDeal}
+      trendInsightsByDeal={trendInsightsByDeal}
+    />
+  )
 }

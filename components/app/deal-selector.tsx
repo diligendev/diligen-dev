@@ -16,19 +16,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { deals } from "@/lib/mock-data"
+import { deals as mockDeals, type Deal } from "@/lib/mock-data"
 
-const completed = deals.filter((d) => d.status === "Complete")
+const completedMockDeals = mockDeals.filter((d) => d.status === "Complete")
 
 export function DealSelector({
   value,
   onChange,
+  deals = completedMockDeals,
 }: {
   value: string
   onChange: (v: string) => void
+  deals?: Deal[]
 }) {
   const [open, setOpen] = useState(false)
-  const selected = completed.find((d) => d.id === value)
+  const selected = deals.find((d) => d.id === value)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -50,7 +52,7 @@ export function DealSelector({
           <CommandList>
             <CommandEmpty>No deals found.</CommandEmpty>
             <CommandGroup>
-              {completed.map((d) => (
+              {deals.map((d) => (
                 <CommandItem
                   key={d.id}
                   value={`${d.company} ${d.sector}`}

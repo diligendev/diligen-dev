@@ -7,68 +7,64 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
 import { PageHeader } from "@/components/app/page-header"
 import { DealSelector } from "@/components/app/deal-selector"
 import {
-  getDeal,
-  getTrendData,
-  getTrendInsights,
   trendMetricMeta,
+  type Deal,
   type TrendMetric,
 } from "@/lib/mock-data"
+import type { TrendData } from "@/lib/data/trends"
 import { cn } from "@/lib/utils"
 
 const chartConfig = {
-  target: { label: "Target",        color: "var(--chart-1)" },
-  sector: { label: "Sector median", color: "var(--chart-2)" },
+  target: { label: "Company", color: "var(--chart-1)" },
 } satisfies ChartConfig
 
 type Granularity = "quarterly" | "annual"
 
-// Churn is only a meaningful trend metric for recurring-revenue businesses. For
-// transactional models (logistics, food, devices, retail) we hide it rather
-// than show a metric a sector specialist would never track for that business.
-const RECURRING_REVENUE_SECTORS = /saas|software|subscription/i
-// Metrics only meaningful for recurring-revenue businesses; hidden for
-// transactional models (logistics, food, devices, retail).
-const RECURRING_ONLY_METRICS = new Set<TrendMetric>(["churn"])
+const HIDDEN_MVP_METRICS = new Set<TrendMetric>(["churn"])
 
 // Available metrics are derived from the metrics that actually carry data for the
-// deal, so any metric the backend adds later surfaces automatically. Recurring-
-// only metrics stay hidden for non-recurring sectors.
-function availableMetricsForDeal(dealId: string, sector: string): TrendMetric[] {
-  const data = getTrendData(dealId)
-  const isRecurring = RECURRING_REVENUE_SECTORS.test(sector)
+// deal, so any metric the backend adds later surfaces automatically.
+function availableMetricsForDeal(data: TrendData): TrendMetric[] {
   return (Object.keys(trendMetricMeta) as TrendMetric[]).filter((metric) => {
+    if (HIDDEN_MVP_METRICS.has(metric)) return false
     const hasData =
       data.annual[metric].length > 0 || data.quarterly[metric].length > 0
-    if (!hasData) return false
-    return isRecurring || !RECURRING_ONLY_METRICS.has(metric)
+    return hasData
   })
 }
 
-export function TrendAnalyzerView({ dealId }: { dealId: string }) {
-  const [deal, setDeal] = useState(dealId)
+export function TrendAnalyzerView({
+  initialDealId,
+  deals,
+  trendDataByDeal,
+  trendInsightsByDeal,
+}: {
+  initialDealId: string
+  deals: Deal[]
+  trendDataByDeal: Record<string, TrendData>
+  trendInsightsByDeal: Record<string, Record<TrendMetric, string>>
+}) {
+  const [deal, setDeal] = useState(initialDealId)
   const [metric, setMetric] = useState<TrendMetric>("revenue")
   // Default to annual: CIMs typically disclose annual (and sometimes LTM)
   // figures; quarterly is only offered when the deal actually has quarterly data.
   const [granularity, setGranularity] = useState<Granularity>("annual")
 
-  // Metrics available for this deal's business model. If the active metric isn't
-  // applicable to the selected deal (e.g. churn on a logistics deal), fall back
-  // to the first available metric so the chart never renders an irrelevant series.
-  const availableMetrics = availableMetricsForDeal(deal, getDeal(deal)?.sector ?? "")
+  // Metrics available for this deal's business model. If the active metric is
+  // hidden or unavailable, fall back to the first available metric.
+  const dealTrendData = trendDataByDeal[deal] ?? emptyTrendData()
+  const dealInsights = trendInsightsByDeal[deal] ?? emptyTrendInsights()
+  const availableMetrics = availableMetricsForDeal(dealTrendData)
   const safeMetric: TrendMetric = availableMetrics.includes(metric)
     ? metric
     : availableMetrics.length > 0
       ? availableMetrics[0]
       : "revenue"
-
-  const dealTrendData = getTrendData(deal)
-  const dealInsights = getTrendInsights(deal)
 
   // Only offer a granularity the selected metric actually has data for.
   const availableGranularities = (["annual", "quarterly"] as Granularity[]).filter(
@@ -87,14 +83,16 @@ export function TrendAnalyzerView({ dealId }: { dealId: string }) {
   const first = data[0]
   const last  = data[data.length - 1]
   const targetDelta   = hasData ? last.target - first.target : 0
-  const gap           = hasData ? last.target - last.sector : 0
+  const averageValue =
+    hasData
+      ? data.reduce((total, point) => total + point.target, 0) / data.length
+      : 0
   const trendPositive = meta.better === "up" ? targetDelta >= 0 : targetDelta <= 0
-  const gapPositive   = meta.better === "up" ? gap >= 0 : gap <= 0
 
   return (
     <>
       <PageHeader title="Trend Analyzer" eyebrow="Diligen">
-        <DealSelector value={deal} onChange={setDeal} />
+        <DealSelector value={deal} onChange={setDeal} deals={deals} />
       </PageHeader>
 
       <div className="flex flex-1 flex-col gap-4 p-5">
@@ -143,9 +141,9 @@ export function TrendAnalyzerView({ dealId }: { dealId: string }) {
         {/* Stat strip */}
         <div className="grid gap-3 sm:grid-cols-3">
           <TrendStatCard
-            label="Current (Target)"
+            label="Current"
             value={meta.format(last.target)}
-            sub={`vs ${meta.format(last.sector)} sector median`}
+            sub={last.period}
           />
           <TrendStatCard
             label={`${first.period} → ${last.period}`}
@@ -154,10 +152,9 @@ export function TrendAnalyzerView({ dealId }: { dealId: string }) {
             showIcon
           />
           <TrendStatCard
-            label="Spread vs Sector"
-            value={`${gap >= 0 ? "+" : ""}${gap.toFixed(1)}${meta.unit}`}
-            positive={gapPositive}
-            showIcon
+            label="Average"
+            value={meta.format(averageValue)}
+            sub={`${data.length} ${data.length === 1 ? "period" : "periods"}`}
           />
         </div>
 
@@ -171,14 +168,7 @@ export function TrendAnalyzerView({ dealId }: { dealId: string }) {
                   className="inline-block h-0.5 w-5 rounded"
                   style={{ background: "var(--chart-1)" }}
                 />
-                Target
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-0.5 w-5 rounded border-t-2 border-dashed"
-                  style={{ borderColor: "var(--chart-2)" }}
-                />
-                Sector median
+                Company
               </span>
             </div>
           </div>
@@ -209,19 +199,7 @@ export function TrendAnalyzerView({ dealId }: { dealId: string }) {
                   tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
                 />
                 <ChartTooltip
-                  content={<ChartTooltipContent />}
-                  formatter={(value, name) => [
-                    `${Number(value).toFixed(1)}${meta.unit}`,
-                    chartConfig[name as keyof typeof chartConfig]?.label ?? name,
-                  ]}
-                />
-                <Line
-                  dataKey="sector"
-                  type="monotone"
-                  stroke="var(--chart-2)"
-                  strokeWidth={2}
-                  strokeDasharray="5 4"
-                  dot={false}
+                  content={<TrendChartTooltip unit={meta.unit} />}
                 />
                 <Line
                   dataKey="target"
@@ -253,14 +231,71 @@ export function TrendAnalyzerView({ dealId }: { dealId: string }) {
           </div>
         )}
 
-        {/* Source attribution — keeps the benchmark line credible for institutional users */}
+        {/* Source attribution */}
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Target series is derived from the deal&apos;s uploaded financials. Sector
-          median is benchmarked across comparable lower-middle-market companies in
-          Diligen&apos;s benchmark set.
+          Company trend series will be derived from the deal&apos;s extracted
+          financials. Benchmarks are hidden until verified sector data is
+          available.
         </p>
       </div>
     </>
+  )
+}
+
+function emptyTrendData(): TrendData {
+  return {
+    annual: emptyTrendSeries(),
+    quarterly: emptyTrendSeries(),
+  }
+}
+
+function emptyTrendSeries() {
+  return {
+    revenue: [],
+    margin: [],
+    grossMargin: [],
+    ebitdaGrowth: [],
+    leverage: [],
+    churn: [],
+  }
+}
+
+function emptyTrendInsights(): Record<TrendMetric, string> {
+  return {
+    revenue: "Revenue growth will appear once enough extracted financial data is available.",
+    margin: "EBITDA margin will appear once enough extracted financial data is available.",
+    grossMargin: "Gross margin will appear once enough extracted financial data is available.",
+    ebitdaGrowth: "EBITDA growth will appear once enough extracted financial data is available.",
+    leverage: "Debt / EBITDA will appear once enough extracted financial data is available.",
+    churn: "Gross revenue churn is not available in the MVP trend view.",
+  }
+}
+
+function TrendChartTooltip({
+  active,
+  payload,
+  label,
+  unit,
+}: {
+  active?: boolean
+  payload?: Array<{ value?: unknown }>
+  label?: unknown
+  unit: string
+}) {
+  const value = payload?.[0]?.value
+  if (!active || typeof value !== "number") return null
+
+  return (
+    <div className="min-w-32 rounded border border-border bg-background px-3 py-2 text-[12px] shadow-xl">
+      <p className="font-medium text-foreground">Period: {String(label)}</p>
+      <div className="mt-1 flex items-center justify-between gap-4">
+        <span className="text-muted-foreground">Company</span>
+        <span className="font-mono font-semibold tabular-nums text-foreground">
+          {value.toFixed(1)}
+          {unit}
+        </span>
+      </div>
+    </div>
   )
 }
 
