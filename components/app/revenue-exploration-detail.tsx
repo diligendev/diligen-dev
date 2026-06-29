@@ -90,6 +90,7 @@ type SavedRevenueViewResponse = RevenueViewPreview & {
 }
 
 const RAW_VIEW_ID = "raw-table"
+const RAW_TABLE_PAGE_SIZE = 500
 
 export function RevenueExplorationDetail({
   deal,
@@ -176,11 +177,11 @@ export function RevenueExplorationDetail({
 
   function handleExport() {
     if (activeView.isRaw) {
-      downloadRevenueRows(rows)
+      downloadRevenueRows(rows, file)
       return
     }
 
-    downloadGeneratedView(activeView)
+    downloadGeneratedView(activeView, file)
   }
 
   async function handleSaveView(view: RevenueView) {
@@ -998,70 +999,113 @@ function bridgeRows(
 }
 
 function RawRevenueTable({ rows }: { rows: RevenueRow[] }) {
+  const [page, setPage] = useState(0)
+  const pageCount = Math.max(1, Math.ceil(rows.length / RAW_TABLE_PAGE_SIZE))
+  const safePage = Math.min(page, pageCount - 1)
+  const startIndex = safePage * RAW_TABLE_PAGE_SIZE
+  const visibleRows = rows.slice(startIndex, startIndex + RAW_TABLE_PAGE_SIZE)
+  const endIndex = startIndex + visibleRows.length
+
   return (
-    <div className="min-h-0 flex-1 overflow-auto overscroll-contain [scrollbar-gutter:stable_both-edges]">
-      <table className="w-full min-w-[1180px] caption-bottom border-separate border-spacing-0 text-[13px] text-foreground">
-        <thead className="sticky top-0 z-10">
-          <tr>
-            <th className="h-9 min-w-[105px] border-b border-border bg-secondary/90 px-2 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
-              Date
-            </th>
-            <th className="h-9 min-w-[230px] border-b border-border bg-secondary/90 px-2 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
-              Customer
-            </th>
-            <th className="h-9 min-w-[170px] border-b border-border bg-secondary/90 px-2 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
-              Product
-            </th>
-            <th className="h-9 min-w-[150px] border-b border-border bg-secondary/90 px-2 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
-              Channel
-            </th>
-            <th className="h-9 min-w-[125px] border-b border-border bg-secondary/90 px-2 text-right align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
-              Revenue
-            </th>
-            <th className="h-9 min-w-[135px] border-b border-border bg-secondary/90 px-2 text-right align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
-              Gross Profit
-            </th>
-            <th className="h-9 min-w-[90px] border-b border-border bg-secondary/90 px-2 text-right align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
-              Units
-            </th>
-            <th className="h-9 min-w-[165px] border-b border-border bg-secondary/90 px-2 text-right align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
-              Recurring Revenue
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="transition-colors hover:bg-muted/50">
-              <td className="border-b border-border px-2 py-2 align-middle font-mono text-[12px] tabular-nums whitespace-nowrap text-muted-foreground">
-                {row.date}
-              </td>
-              <td className="max-w-[300px] truncate border-b border-border px-2 py-2 align-middle font-medium whitespace-nowrap text-foreground">
-                {row.customer}
-              </td>
-              <td className="max-w-[210px] truncate border-b border-border px-2 py-2 align-middle whitespace-nowrap text-foreground">
-                {row.product ?? "-"}
-              </td>
-              <td className="max-w-[190px] truncate border-b border-border px-2 py-2 align-middle whitespace-nowrap text-foreground">
-                {row.channel ?? "-"}
-              </td>
-              <td className="border-b border-border px-2 py-2 text-right align-middle font-mono tabular-nums whitespace-nowrap text-foreground">
-                {fmtCurrency(row.revenue)}
-              </td>
-              <td className="border-b border-border px-2 py-2 text-right align-middle font-mono tabular-nums whitespace-nowrap text-foreground">
-                {row.grossProfit == null ? "-" : fmtCurrency(row.grossProfit)}
-              </td>
-              <td className="border-b border-border px-2 py-2 text-right align-middle font-mono tabular-nums whitespace-nowrap text-foreground">
-                {row.units == null ? "-" : fmtNumber(row.units)}
-              </td>
-              <td className="border-b border-border px-2 py-2 text-right align-middle font-mono tabular-nums whitespace-nowrap text-foreground">
-                {row.recurringRevenue == null
-                  ? "-"
-                  : fmtCurrency(row.recurringRevenue)}
-              </td>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center justify-between border-b border-border bg-card px-3 py-2">
+        <span className="text-[12px] text-muted-foreground">
+          Showing {rows.length ? startIndex + 1 : 0}-{endIndex} of{" "}
+          {rows.length.toLocaleString()} rows
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={safePage === 0}
+            onClick={() => setPage((current) => Math.max(0, current - 1))}
+            className="h-7 rounded-sm px-2 text-[12px]"
+          >
+            Previous
+          </Button>
+          <span className="min-w-16 text-center text-[12px] text-muted-foreground">
+            {safePage + 1} / {pageCount}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={safePage >= pageCount - 1}
+            onClick={() =>
+              setPage((current) => Math.min(pageCount - 1, current + 1))
+            }
+            className="h-7 rounded-sm px-2 text-[12px]"
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto overscroll-contain [scrollbar-gutter:stable_both-edges]">
+        <table className="w-full min-w-[1180px] caption-bottom border-separate border-spacing-0 text-[13px] text-foreground">
+          <thead className="sticky top-0 z-10">
+            <tr>
+              <th className="h-9 min-w-[105px] border-b border-border bg-secondary/90 px-2 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
+                Date
+              </th>
+              <th className="h-9 min-w-[230px] border-b border-border bg-secondary/90 px-2 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
+                Customer
+              </th>
+              <th className="h-9 min-w-[170px] border-b border-border bg-secondary/90 px-2 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
+                Product
+              </th>
+              <th className="h-9 min-w-[150px] border-b border-border bg-secondary/90 px-2 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
+                Channel
+              </th>
+              <th className="h-9 min-w-[125px] border-b border-border bg-secondary/90 px-2 text-right align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
+                Revenue
+              </th>
+              <th className="h-9 min-w-[135px] border-b border-border bg-secondary/90 px-2 text-right align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
+                Gross Profit
+              </th>
+              <th className="h-9 min-w-[90px] border-b border-border bg-secondary/90 px-2 text-right align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
+                Units
+              </th>
+              <th className="h-9 min-w-[165px] border-b border-border bg-secondary/90 px-2 text-right align-middle text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap text-muted-foreground backdrop-blur">
+                Recurring Revenue
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {visibleRows.map((row) => (
+              <tr key={row.id} className="transition-colors hover:bg-muted/50">
+                <td className="border-b border-border px-2 py-2 align-middle font-mono text-[12px] tabular-nums whitespace-nowrap text-muted-foreground">
+                  {row.date}
+                </td>
+                <td className="max-w-[300px] truncate border-b border-border px-2 py-2 align-middle font-medium whitespace-nowrap text-foreground">
+                  {row.customer}
+                </td>
+                <td className="max-w-[210px] truncate border-b border-border px-2 py-2 align-middle whitespace-nowrap text-foreground">
+                  {row.product ?? "-"}
+                </td>
+                <td className="max-w-[190px] truncate border-b border-border px-2 py-2 align-middle whitespace-nowrap text-foreground">
+                  {row.channel ?? "-"}
+                </td>
+                <td className="border-b border-border px-2 py-2 text-right align-middle font-mono tabular-nums whitespace-nowrap text-foreground">
+                  {fmtCurrency(row.revenue)}
+                </td>
+                <td className="border-b border-border px-2 py-2 text-right align-middle font-mono tabular-nums whitespace-nowrap text-foreground">
+                  {row.grossProfit == null ? "-" : fmtCurrency(row.grossProfit)}
+                </td>
+                <td className="border-b border-border px-2 py-2 text-right align-middle font-mono tabular-nums whitespace-nowrap text-foreground">
+                  {row.units == null ? "-" : fmtNumber(row.units)}
+                </td>
+                <td className="border-b border-border px-2 py-2 text-right align-middle font-mono tabular-nums whitespace-nowrap text-foreground">
+                  {row.recurringRevenue == null
+                    ? "-"
+                    : fmtCurrency(row.recurringRevenue)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -1196,11 +1240,14 @@ function formatSignedMeasure(value: number, measure: RevenueMeasure) {
 }
 
 function csvCell(value: string | number) {
-  const text = String(value)
+  const text =
+    typeof value === "string" && /^[=+\-@]/.test(value)
+      ? `'${value}`
+      : String(value)
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 
-function downloadRevenueRows(rows: RevenueRow[]) {
+function downloadRevenueRows(rows: RevenueRow[], file: RevenueFile) {
   const csv = [
     [
       "Date",
@@ -1226,31 +1273,61 @@ function downloadRevenueRows(rows: RevenueRow[]) {
     .map((row) => row.map(csvCell).join(","))
     .join("\n")
 
-  downloadCsv("normalized-revenue-rows.csv", csv)
+  downloadCsv(
+    `${safeFileName(stripExtension(file.fileName))}-normalized-revenue-rows-${dateStamp()}.csv`,
+    csv,
+  )
 }
 
-function downloadGeneratedView(view: RevenueView) {
+function downloadGeneratedView(view: RevenueView, file: RevenueFile) {
   if (!view.analysis) return
 
-  const sections: Array<Array<Array<string | number>>> = [
-    [["Values"], ...pivotToRows(view.analysis.pivot)],
-    [["Percent Total"], ...pivotToRows(view.analysis.percentTotal)],
-    [["Period Growth"], ...pivotToRows(view.analysis.growth)],
-    [["Bridge Analysis"], ...bridgeToRows(view.analysis.bridge)],
-    [["Concentration Analysis"], ...concentrationToRows(view.analysis.concentration)],
-    [
-      ["Concentration Percent Total"],
-      ...concentrationToRows(view.analysis.concentrationPercent),
-    ],
-    [["Concentration Growth"], ...concentrationToRows(view.analysis.concentrationGrowth)],
-  ]
+  const sections = generatedViewExportSections(view)
 
   const csv = sections
     .flatMap((section, index) => (index === 0 ? section : [[], ...section]))
     .map((row) => row.map(csvCell).join(","))
     .join("\n")
 
-  downloadCsv(`${safeFileName(view.name)}.csv`, csv)
+  downloadCsv(
+    `${safeFileName(stripExtension(file.fileName))}-${safeFileName(view.name)}-${dateStamp(view.resultGeneratedAt)}.csv`,
+    csv,
+  )
+}
+
+function generatedViewExportSections(
+  view: RevenueView,
+): Array<Array<Array<string | number>>> {
+  if (!view.analysis) return []
+
+  const hasComparablePeriods = hasGrowthPeriods(
+    view.analysis.pivot.periods,
+    view.period ?? "Monthly",
+  )
+
+  return [
+    [["Values"], ...pivotToRows(view.analysis.pivot)],
+    [["Percent Total"], ...pivotToRows(view.analysis.percentTotal)],
+    ...(hasComparablePeriods
+      ? [
+          [["Period Growth"], ...pivotToRows(view.analysis.growth)],
+          [["Bridge Analysis"], ...bridgeToRows(view.analysis.bridge)],
+        ]
+      : []),
+    [["Concentration Analysis"], ...concentrationToRows(view.analysis.concentration)],
+    [
+      ["Concentration Percent Total"],
+      ...concentrationToRows(view.analysis.concentrationPercent),
+    ],
+    ...(hasComparablePeriods
+      ? [
+          [
+            ["Concentration Growth"],
+            ...concentrationToRows(view.analysis.concentrationGrowth),
+          ],
+        ]
+      : []),
+  ]
 }
 
 function pivotToRows(table: PivotTable): Array<Array<string | number>> {
@@ -1339,4 +1416,20 @@ function downloadCsv(fileName: string, csv: string) {
 
 function safeFileName(name: string) {
   return name.replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "") || "export"
+}
+
+function stripExtension(fileName: string) {
+  return fileName.replace(/\.[^.]+$/, "")
+}
+
+function dateStamp(iso?: string) {
+  const date = iso ? new Date(iso) : new Date()
+  if (Number.isNaN(date.getTime())) return "export"
+
+  const pad = (value: number) => String(value).padStart(2, "0")
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+  ].join("")
 }
