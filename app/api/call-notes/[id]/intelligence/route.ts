@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canRunAnalysis } from "@/lib/auth/permissions"
 import { createClient } from "@/lib/supabase/server"
 import type { CallNoteIntelligence } from "@/lib/data/deals"
 import type { DealAnalysis } from "@/lib/mock-data"
@@ -193,6 +194,10 @@ export async function POST(
 
   if (!hasWorkspace(context)) {
     return NextResponse.json({ error: "Workspace required" }, { status: 403 })
+  }
+
+  if (!canRunAnalysis(context.membership.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const { id } = await params

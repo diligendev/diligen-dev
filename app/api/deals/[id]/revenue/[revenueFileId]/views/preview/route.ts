@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canWorkOnDeals } from "@/lib/auth/permissions"
 import { getCurrentOrganizationRevenueFileDetail } from "@/lib/data/revenue"
 import {
   BREAKDOWN_OPTIONS,
@@ -34,6 +36,17 @@ export async function POST(
   { params }: { params: Promise<{ id: string; revenueFileId: string }> },
 ) {
   try {
+    const context = await getCurrentUserContext()
+    if (!context) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    if (!hasWorkspace(context)) {
+      return NextResponse.json({ error: "Workspace required" }, { status: 403 })
+    }
+    if (!canWorkOnDeals(context.membership.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
     const { id: dealId, revenueFileId } = await params
     const body = (await request.json().catch(() => null)) as PreviewBody | null
 

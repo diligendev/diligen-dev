@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canManageTeam } from "@/lib/auth/permissions"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 const INVITE_ROLES = ["admin", "member", "viewer"] as const
@@ -8,10 +9,6 @@ type InviteRole = (typeof INVITE_ROLES)[number]
 
 function isInviteRole(value: string): value is InviteRole {
   return (INVITE_ROLES as readonly string[]).includes(value)
-}
-
-function isAdminRole(role: string) {
-  return role === "owner" || role === "admin"
 }
 
 function normalizeEmail(value: unknown) {
@@ -30,7 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Workspace required" }, { status: 403 })
   }
 
-  if (!isAdminRole(context.membership.role)) {
+  if (!canManageTeam(context.membership.role)) {
     return NextResponse.json(
       { error: "Only workspace owners and admins can invite members." },
       { status: 403 },
@@ -73,7 +70,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: inviteError.message }, { status: 400 })
   }
 
-  await admin.from("organization_invites").insert({
+  const { error: trackingError } = await admin.from("organization_invites").insert({
     organization_id: context.organization.id,
     email,
     role,
@@ -83,6 +80,10 @@ export async function POST(request: NextRequest) {
       full_name: fullName || null,
     },
   })
+
+  if (trackingError) {
+    return NextResponse.json({ error: trackingError.message }, { status: 400 })
+  }
 
   await admin.from("audit_events").insert({
     organization_id: context.organization.id,

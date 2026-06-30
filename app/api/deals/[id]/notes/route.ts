@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canManageNotes } from "@/lib/auth/permissions"
 import { createClient } from "@/lib/supabase/server"
 
 function noteBody(value: unknown) {
@@ -30,6 +31,9 @@ export async function POST(
   }
   if (!hasWorkspace(context)) {
     return NextResponse.json({ error: "Workspace required" }, { status: 403 })
+  }
+  if (!canManageNotes(context.membership.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const body = await request.json().catch(() => null)

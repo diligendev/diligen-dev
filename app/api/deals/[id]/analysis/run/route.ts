@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canRunAnalysis } from "@/lib/auth/permissions"
 import { getActiveCimExtractedText } from "@/lib/data/deals"
 import { createClient } from "@/lib/supabase/server"
 import { logUsageEvent, type AiUsage } from "@/lib/usage"
@@ -186,6 +187,10 @@ export async function POST(
 
   if (!hasWorkspace(context)) {
     return NextResponse.json({ error: "Workspace required" }, { status: 403 })
+  }
+
+  if (!canRunAnalysis(context.membership.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const { id } = await params

@@ -1,17 +1,28 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canManageTeam } from "@/lib/auth/permissions"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-const ROLES = ["owner", "admin", "member", "viewer"] as const
-type Role = (typeof ROLES)[number]
+const EDITABLE_ROLES = ["admin", "member", "viewer"] as const
+type EditableRole = (typeof EDITABLE_ROLES)[number]
+type Role = "owner" | EditableRole
 
-function isRole(value: unknown): value is Role {
-  return typeof value === "string" && (ROLES as readonly string[]).includes(value)
+function isEditableRole(value: unknown): value is EditableRole {
+  return typeof value === "string" &&
+    (EDITABLE_ROLES as readonly string[]).includes(value)
 }
 
-function canManageTeam(role: string) {
-  return role === "owner" || role === "admin"
+function canChangeRole(actorRole: string, currentRole: Role, nextRole: EditableRole) {
+  if (actorRole === "owner") return true
+  if (actorRole !== "admin") return false
+  return currentRole !== "owner" && currentRole !== "admin" && nextRole !== "admin"
+}
+
+function canRemoveMember(actorRole: string, targetRole: Role) {
+  if (actorRole === "owner") return true
+  if (actorRole !== "admin") return false
+  return targetRole === "member" || targetRole === "viewer"
 }
 
 async function getMember(admin: ReturnType<typeof createAdminClient>, id: string) {
@@ -58,7 +69,7 @@ export async function PATCH(
   const body = await request.json().catch(() => null)
   const role = body?.role
 
-  if (!isRole(role)) {
+  if (!isEditableRole(role)) {
     return NextResponse.json({ error: "Invalid role." }, { status: 400 })
   }
 
@@ -77,7 +88,14 @@ export async function PATCH(
     )
   }
 
-  if (member.role === "owner" && role !== "owner") {
+  if (!canChangeRole(context.membership.role, member.role, role)) {
+    return NextResponse.json(
+      { error: "Only workspace owners can assign or manage admin roles." },
+      { status: 403 },
+    )
+  }
+
+  if (member.role === "owner") {
     const ownerCount = await countOwners(admin, context.organization.id)
     if (ownerCount <= 1) {
       return NextResponse.json(
@@ -137,6 +155,13 @@ export async function DELETE(
     return NextResponse.json(
       { error: "You cannot remove yourself from the workspace." },
       { status: 400 },
+    )
+  }
+
+  if (!canRemoveMember(context.membership.role, member.role)) {
+    return NextResponse.json(
+      { error: "Only workspace owners can remove admins or owners." },
+      { status: 403 },
     )
   }
 

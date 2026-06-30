@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { extractText } from "unpdf"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canRunAnalysis } from "@/lib/auth/permissions"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 export const runtime = "nodejs"
@@ -41,6 +42,10 @@ export async function POST(
 
   if (!hasWorkspace(context)) {
     return NextResponse.json({ error: "Workspace required" }, { status: 403 })
+  }
+
+  if (!canRunAnalysis(context.membership.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const { id: dealId, documentId } = await params

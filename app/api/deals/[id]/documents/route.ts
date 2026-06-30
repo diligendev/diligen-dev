@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canUploadDocument } from "@/lib/auth/permissions"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 const BUCKET = "deal-documents"
@@ -46,6 +47,10 @@ export async function POST(
 
   if (!hasWorkspace(context)) {
     return NextResponse.json({ error: "Workspace required" }, { status: 403 })
+  }
+
+  if (!canUploadDocument(context.membership.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const { id: dealId } = await params

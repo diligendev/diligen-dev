@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canUpdateDeal } from "@/lib/auth/permissions"
 import { createClient } from "@/lib/supabase/server"
 
 const STAGES = ["New", "Analyzing", "Reviewed", "Pursuing", "Passed", "Closed"]
@@ -18,6 +19,10 @@ export async function PATCH(
 
   if (!hasWorkspace(context)) {
     return NextResponse.json({ error: "Workspace required" }, { status: 403 })
+  }
+
+  if (!canUpdateDeal(context.membership.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const body = await request.json().catch(() => null)

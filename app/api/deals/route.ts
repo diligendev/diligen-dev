@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canCreateDeal } from "@/lib/auth/permissions"
 import { slugifyDealName } from "@/lib/data/deals"
 import { createClient } from "@/lib/supabase/server"
 
@@ -24,6 +25,10 @@ export async function POST(request: NextRequest) {
 
   if (!hasWorkspace(context)) {
     return NextResponse.json({ error: "Workspace required" }, { status: 403 })
+  }
+
+  if (!canCreateDeal(context.membership.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const body = await request.json().catch(() => null)

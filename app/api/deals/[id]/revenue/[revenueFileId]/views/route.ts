@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canWorkOnDeals } from "@/lib/auth/permissions"
 import { getCurrentOrganizationRevenueFileDetail } from "@/lib/data/revenue"
 import {
   BREAKDOWN_OPTIONS,
@@ -42,6 +43,10 @@ export async function POST(
     }
     if (!hasWorkspace(context)) {
       return NextResponse.json({ error: "Workspace required" }, { status: 403 })
+    }
+
+    if (!canWorkOnDeals(context.membership.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const { id: dealId, revenueFileId } = await params

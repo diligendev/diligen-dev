@@ -1,11 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canManageTeam } from "@/lib/auth/permissions"
 import { createAdminClient } from "@/lib/supabase/admin"
-
-function canManageTeam(role: string) {
-  return role === "owner" || role === "admin"
-}
 
 export async function PATCH(
   _request: NextRequest,
@@ -24,15 +21,24 @@ export async function PATCH(
   const { id } = await params
   const admin = createAdminClient()
 
-  const { error } = await admin
+  const { data: revokedInvite, error } = await admin
     .from("organization_invites")
     .update({ status: "revoked" })
     .eq("id", id)
     .eq("organization_id", context.organization.id)
     .eq("status", "pending")
+    .select("id")
+    .maybeSingle<{ id: string }>()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 })
+  }
+
+  if (!revokedInvite) {
+    return NextResponse.json(
+      { error: "Invite not found or no longer pending." },
+      { status: 404 },
+    )
   }
 
   await admin.from("audit_events").insert({

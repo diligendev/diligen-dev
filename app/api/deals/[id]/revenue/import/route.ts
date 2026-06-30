@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canWorkOnDeals } from "@/lib/auth/permissions"
 import { normalizeRevenueRows, parseCsv, type RevenueMapping } from "@/lib/revenue/csv"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -53,6 +54,10 @@ export async function POST(
 
     if (!hasWorkspace(context)) {
       return NextResponse.json({ error: "Workspace required" }, { status: 403 })
+    }
+
+    if (!canWorkOnDeals(context.membership.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const { id: dealId } = await params

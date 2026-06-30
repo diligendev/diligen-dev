@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getCurrentUserContext, hasWorkspace } from "@/lib/auth/context"
+import { canDeleteDocument, canEditDocument } from "@/lib/auth/permissions"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 const BUCKET = "deal-documents"
@@ -23,6 +24,10 @@ export async function PATCH(
 
   if (!hasWorkspace(context)) {
     return NextResponse.json({ error: "Workspace required" }, { status: 403 })
+  }
+
+  if (!canEditDocument(context.membership.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const body = await request.json().catch(() => null)
@@ -70,6 +75,10 @@ export async function DELETE(
 
   if (!hasWorkspace(context)) {
     return NextResponse.json({ error: "Workspace required" }, { status: 403 })
+  }
+
+  if (!canDeleteDocument(context.membership.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const { id: dealId, documentId } = await params

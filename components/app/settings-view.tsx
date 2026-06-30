@@ -16,6 +16,7 @@ import {
   Monitor,
   Ban,
   Repeat2,
+  UserMinus,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -712,6 +713,19 @@ function TeamSection({
   const canInvite =
     !atCapacity && (currentUserRole === "owner" || currentUserRole === "admin")
   const canManage = currentUserRole === "owner" || currentUserRole === "admin"
+  const canManageAdminRoles = currentUserRole === "owner"
+
+  function canEditMemberRole(member: SettingsMember, isCurrentUser: boolean) {
+    if (isCurrentUser || !canManage) return false
+    if (currentUserRole === "owner") return true
+    return member.role === "member" || member.role === "viewer"
+  }
+
+  function canRemoveMember(member: SettingsMember, isCurrentUser: boolean) {
+    if (isCurrentUser || !canManage) return false
+    if (currentUserRole === "owner") return true
+    return member.role === "member" || member.role === "viewer"
+  }
 
   async function updateMemberRole(memberId: string, role: WorkspaceRole) {
     const response = await fetch(`/api/team/members/${memberId}`, {
@@ -811,13 +825,17 @@ function TeamSection({
             <tr className="border-b border-border bg-secondary/50 text-left">
               <th className="px-3 py-2 atlas-label">Member</th>
               <th className="px-3 py-2 atlas-label">Role</th>
-              <th className="w-14 px-3 py-2 atlas-label">Actions</th>
+              <th className="w-24 px-3 py-2 atlas-label">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {members.map((mbr) => {
               const isCurrentUser =
                 mbr.email.toLowerCase() === currentUserEmail.toLowerCase()
+              const showTransferOwnership =
+                currentUserRole === "owner" && mbr.role === "owner"
+              const showRemoveMember = canManage
+              const hasVisibleActions = showTransferOwnership || showRemoveMember
 
               return (
               <tr key={mbr.id} className="transition-colors hover:bg-secondary/30">
@@ -836,7 +854,7 @@ function TeamSection({
                   {canManage ? (
                     <Select
                       value={mbr.role}
-                      disabled={isCurrentUser}
+                      disabled={!canEditMemberRole(mbr, isCurrentUser)}
                       onValueChange={(value) =>
                         void updateMemberRole(mbr.id, value as WorkspaceRole)
                       }
@@ -845,7 +863,9 @@ function TeamSection({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        {canManageAdminRoles && (
+                          <SelectItem value="admin">Admin</SelectItem>
+                        )}
                         <SelectItem value="member">Member</SelectItem>
                         <SelectItem value="viewer">Viewer</SelectItem>
                       </SelectContent>
@@ -854,18 +874,47 @@ function TeamSection({
                     <span className="capitalize">{mbr.role}</span>
                   )}
                 </td>
-                <td className="px-3 py-2.5 text-right">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled
-                    className="text-muted-foreground"
-                    title="Transfer ownership"
-                  >
-                    <Repeat2 />
-                    <span className="sr-only">Transfer ownership</span>
-                  </Button>
+                <td className="px-3 py-2.5">
+                  <div className="flex justify-end gap-1">
+                  {showTransferOwnership && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled
+                      className="text-muted-foreground"
+                      title="Transfer ownership"
+                    >
+                      <Repeat2 />
+                      <span className="sr-only">Transfer ownership</span>
+                    </Button>
+                  )}
+                  {showRemoveMember && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={!canRemoveMember(mbr, isCurrentUser)}
+                      onClick={() =>
+                        setConfirmAction({
+                          type: "remove-member",
+                          id: mbr.id,
+                          label: mbr.name || mbr.email,
+                        })
+                      }
+                      className="text-muted-foreground hover:text-destructive"
+                      title="Remove member"
+                    >
+                      <UserMinus />
+                      <span className="sr-only">Remove member</span>
+                    </Button>
+                  )}
+                  {!hasVisibleActions && (
+                    <span className="flex h-8 w-8 items-center justify-center text-muted-foreground">
+                      -
+                    </span>
+                  )}
+                  </div>
                 </td>
               </tr>
               )
